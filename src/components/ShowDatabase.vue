@@ -4,7 +4,7 @@
             <el-option v-for="table in tables" :key="table" :label="table" :value="table" />
         </el-select>
         <el-table :data="tableData" v-if="tableData.length > 0">
-            <el-table-column v-for="(key) in tableData[0] || {}" :key="key" :prop="key" :label="key" />
+            <el-table-column v-for="(key) in Object.keys(tableData[0] || {})" :key="key" :prop="key" :label="key" />
         </el-table>
         <p v-else>No data to display</p>
     </div>
