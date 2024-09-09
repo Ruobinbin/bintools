@@ -4,7 +4,8 @@
   "description": "Capability for the main window",
   "windows": [
     "main",
-    "novel"
+    "novel",
+    "setting"
   ],
   "permissions": [
     "core:default",

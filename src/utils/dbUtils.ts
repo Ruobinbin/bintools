@@ -27,6 +27,8 @@ export const getTableDataByName = async (tableName: string): Promise<Array<Recor
     return result as Array<Record<string, any>>;
 };
 
+//====================小说====================
+
 // 创建小说表格
 const createNovelsTable = async () => {
     const db = await getDatabase();
@@ -59,7 +61,8 @@ export const getAllNovels = async (): Promise<INovel[]> => {
         return [];
     }
 };
-//=====================================
+
+//====================视频====================
 
 // 创建视频表格
 const createVideosTable = async () => {
@@ -105,3 +108,63 @@ export const getAllVideos = async (): Promise<IVideo[]> => {
         return [];
     }
 };
+
+// 创建博主主页URL表格
+const createChannelUrlTable = async () => {
+    const db = await getDatabase();
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS channel_urls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT UNIQUE NOT NULL
+        )
+    `);
+};
+
+// 获取所有博主的URL
+export const getAllChannelUrls = async (): Promise<string[]> => {
+    try {
+        const db = await getDatabase();
+        await createChannelUrlTable();
+        const result = await db.select('SELECT url FROM channel_urls') as { url: string }[];
+        return result.map(row => row.url);
+    } catch (error) {
+        return [];
+    }
+};
+
+// 添加博主URL
+export const addChannelUrl = async (url: string): Promise<boolean> => {
+    try {
+        const db = await getDatabase();
+        await createChannelUrlTable();
+        await db.execute('INSERT INTO channel_urls (url) VALUES (?)', [url]);
+        return true;
+    } catch (error) {
+        return false;
+    }
+};
+
+// 根据id删除博主URL
+export const deleteChannelUrlById = async (id: number): Promise<boolean> => {
+    try {
+        const db = await getDatabase();
+        await db.execute('DELETE FROM channel_urls WHERE id = ?', [id]);
+        return true;
+    } catch (error) {
+        return false;
+    }
+};
+
+//根据URL删除博主URL
+export const deleteChannelUrlByUrl = async (url: string): Promise<boolean> => {
+    try {
+        const db = await getDatabase();
+        await db.execute('DELETE FROM channel_urls WHERE url = ?', [url]);
+        return true;
+    } catch (error) {
+        return false;
+    }
+};
+
+
+

@@ -41,7 +41,16 @@
         </el-tab-pane>
         <el-tab-pane label="视频">
             <audio src=""></audio>
-            <el-input v-model="channelUrl" placeholder="博主主页链接"></el-input>
+            <div style="display: flex; align-items: center;">
+                <el-select v-model="selectedChannel" placeholder="选择博主主页链接" style="flex-grow: 1; margin-right: 10px;">
+                    <el-option v-for="channel in channelUrls" :key="channel" :label="channel" :value="channel">
+                        {{ channel }}
+                    </el-option>
+                </el-select>
+                <el-button @click="deleteCurrentChannelUrl">删除当前博主链接</el-button>
+            </div>
+            <el-input v-model="newChannelUrl" placeholder="输入新的博主主页链接"
+                @keyup.enter="addNewChannelUrl(newChannelUrl)"></el-input>
             <el-button @click="getVideoList">获取视频列表</el-button>
             <audio ref="audios" controls></audio>
             <el-text>所选视频时长: {{ totalVideoDuration }}</el-text>
@@ -102,7 +111,7 @@ import { computed, onMounted, ref } from 'vue'
 import { getAudioDuration, getFileNameFromPath } from '../../utils/defaultUtils'
 import { Novel } from '../../utils/novelUtils'
 import { IThumbnail, Video } from '../../utils/ytdlpUitls'
-import { getAllNovels, resetNovelsTable, getAllVideos } from '../../utils/dbUtils'
+import { getAllNovels, resetNovelsTable, getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl } from '../../utils/dbUtils'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const OUTPUT_PATH = ref('');//输出路径
@@ -114,7 +123,9 @@ let totalVideoDuration = computed(() => {
         .filter(video => video.selected)
         .reduce((total, video) => total + video.duration, 0);
 });//视频总时长
-let channelUrl = ref('https://www.youtube.com/@indianasmrworld') //视频主页链接
+let channelUrls = ref<string[]>([]); // 博主主页链接列表
+let selectedChannel = ref(''); // 当前选中的博主主页链接
+let newChannelUrl = ref(''); // 新添加的博主主页链接
 const audios = ref<HTMLAudioElement>(); // 所有音频
 let videoOrientation = ref('portrait'); // 默认竖屏
 let currentStep = ref(0);  // 当前步骤的索引
@@ -134,8 +145,22 @@ onMounted(async () => {
         let thumbnails: IThumbnail[] = video.thumbnails;
         return new Video(video.id, video.url, video.duration, thumbnails);
     });
+    channelUrls.value = await getAllChannelUrls();
     audios.value!.src = convertFileSrc(OUTPUT_PATH.value + '\\audios.wav');
 });
+
+//添加博主主页链接
+const addNewChannelUrl = async (url: string) => {
+    if (url) {
+        const success = await addChannelUrl(url);
+        if (success) {
+            channelUrls.value.push(url);
+            ElMessage.success('添加博主主页链接成功');
+        } else {
+            ElMessage.error('添加博主主页链接失败');
+        }
+    }
+}
 //保存小说到数据库
 const saveNovel = async () => {
     await resetNovelsTable(novels.value).then(() => {
@@ -143,6 +168,17 @@ const saveNovel = async () => {
     }).catch((error) => {
         ElMessage.error(`重置小说数据失败: ${error as string}`);
     });
+}
+
+// 删除当前选中的博主URL
+const deleteCurrentChannelUrl = async () => {
+    if (selectedChannel.value) {
+        await deleteChannelUrlByUrl(selectedChannel.value);
+        channelUrls.value = channelUrls.value.filter(channel => channel !== selectedChannel.value);
+        selectedChannel.value = '';
+    } else {
+        ElMessage.warning('请选择一个博主链接');
+    }
 }
 //下载BGM
 const downloadBgm = async (url: string) => {
@@ -203,7 +239,7 @@ const getVideoList = async () => {
         '--flat-playlist',
         '--print-json',
         '--playlist-end', '50',
-        channelUrl.value
+        selectedChannel.value
     ];
 
     await invoke('run_yt_dlp_cmd', { cmd }).then((log) => {
@@ -376,6 +412,8 @@ const setNovelTable = () => {
             ElMessage.info('已取消');
         })
 }
+
+
 
 </script>
 

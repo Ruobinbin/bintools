@@ -34,7 +34,8 @@ export default defineConfig(async () => ({
     rollupOptions: {
       input: {
         index: 'index.html',
-        novel: 'src/views/novel/novel.html'
+        novel: 'src/views/novel/novel.html',
+        setting: 'src/views/setting/setting.html'
       },
     },
   }
