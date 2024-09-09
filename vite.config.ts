@@ -19,14 +19,23 @@ export default defineConfig(async () => ({
     host: host || false,
     hmr: host
       ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
+        protocol: "ws",
+        host,
+        port: 1421,
+      }
       : undefined,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    assetsDir: 'assets', // 设置静态资源目录 这个设置了之后构建前的目录和构建后的目录就保持一致了
+    rollupOptions: {
+      input: {
+        index: 'index.html',
+        novel: 'src/views/novel/novel.html'
+      },
+    },
+  }
 }));

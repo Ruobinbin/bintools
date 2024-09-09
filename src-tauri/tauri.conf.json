@@ -13,11 +13,21 @@
       {
         "title": "bintools",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "visible": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src *; asset: http://asset.localhost;",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
     }
   },
   "bundle": {
