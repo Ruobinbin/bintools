@@ -11,15 +11,10 @@ const input = ref("");
 const handleInputEnter = async () => {
   switch (input.value) {
     case '/xs':
-      const novelWindow = await Window.getByLabel('novel');
-      if (!novelWindow) {
-        new WebviewWindow('novel', {
-          url: 'src/views/novel/novel.html'
-        });
-      } else {
-        novelWindow.unminimize();
-        novelWindow.setFocus();
-      }
+      await openWindow('novel', 'src/views/novel/novel.html');
+      break;
+    case '/setting':
+      await openWindow('setting', 'src/views/setting/setting.html');
       break;
     default:
       console.log(await invoke("input_enter", { value: input.value }))
@@ -49,6 +44,18 @@ onMounted(async () => {
     });
   }
 })
+
+const openWindow = async (windowLabel: string, path: string) => {
+  const window = await Window.getByLabel(windowLabel);
+  if (!window) {
+    new WebviewWindow(windowLabel, {
+      url: path
+    });
+  } else {
+    await window.unminimize();
+    await window.setFocus();
+  }
+};
 </script>
 
 <template>
