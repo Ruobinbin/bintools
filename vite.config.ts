@@ -8,11 +8,11 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [vue()],
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
+  // Vite 选项专为 Tauri 开发定制，仅在 `tauri dev` 或 `tauri build` 中应用
   //
-  // 1. prevent vite from obscuring rust errors
+  // 1. 防止 vite 掩盖 rust 错误
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+  // 2. tauri 需要一个固定端口，如果该端口不可用则失败
   server: {
     port: 1420,
     strictPort: true,
@@ -25,7 +25,7 @@ export default defineConfig(async () => ({
       }
       : undefined,
     watch: {
-      // 3. tell vite to ignore watching `src-tauri`
+      // 3. 告诉 vite 忽略监视 `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },
