@@ -37,7 +37,7 @@
             </el-table>
         </el-tab-pane>
         <el-tab-pane label="gpt-sovits">
-            <gpt_sovits ref="gptSovitsRef" />
+            <GptSovits ref="gptSovitsRef" />
         </el-tab-pane>
         <el-tab-pane label="视频">
             <audio src=""></audio>
@@ -88,11 +88,8 @@
             <audio v-if="selectedBgm" :src="convertFileSrc(selectedBgm)" controls></audio>
             <el-input v-model="BgmUrl" placeholder="下载BGM" @keyup.enter="downloadBgm(BgmUrl)"></el-input>
         </el-tab-pane>
-        <el-tab-pane label="设置">
-            <show_database />
-        </el-tab-pane>
         <el-tab-pane label="docker日志">
-            <docker_log />
+            <DockerLog />
         </el-tab-pane>
     </el-tabs>
 </template>
@@ -101,18 +98,13 @@ import { open } from '@tauri-apps/plugin-shell';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 
 import { resourceDir } from '@tauri-apps/api/path';
-
-import gpt_sovits from '../../components/GptSovits.vue';
-import show_database from '../../components/ShowDatabase.vue';
-import docker_log from '../../components/DockerLog.vue';
-
-
-import { computed, onMounted, ref } from 'vue'
 import { getAudioDuration, getFileNameFromPath } from '../../utils/defaultUtils'
 import { Novel } from '../../utils/novelUtils'
 import { IThumbnail, Video } from '../../utils/ytdlpUitls'
 import { getAllNovels, resetNovelsTable, getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl } from '../../utils/dbUtils'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus';
+import GptSovits from '../../components/GptSovits.vue';
+import { computed, onMounted, ref } from 'vue';
 
 const OUTPUT_PATH = ref('');//输出路径
 let novelContents = ref('') //小说内容
@@ -130,10 +122,10 @@ const audios = ref<HTMLAudioElement>(); // 所有音频
 let videoOrientation = ref('portrait'); // 默认竖屏
 let currentStep = ref(0);  // 当前步骤的索引
 let bgmList = ref<string[]>([]); // BGM列表
-let selectedBgm = ref<string | null>(null); // 选择的BGM
+let selectedBgm = ref<string>(''); // 选择的BGM
 let BgmUrl = ref(''); // 下载BGM的链接
 let bgmVolume = ref(0.1); // 默认音量为0.1（10%）
-const gptSovitsRef = ref<InstanceType<typeof gpt_sovits> | null>(null);
+const gptSovitsRef = ref<InstanceType<typeof GptSovits> | null>(null);
 
 //载入时触发
 onMounted(async () => {
