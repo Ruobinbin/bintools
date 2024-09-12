@@ -1,5 +1,6 @@
 <template>
     <div class="chat-container">
+        <el-text>当前模型: {{ settingStore.chatModel }}</el-text>
         <div class="chat-settings">
             <input v-model="chatSetting" @input="setChatSetting" placeholder="改变触发..." />
         </div>
@@ -24,20 +25,18 @@
 import { Delete } from '@element-plus/icons-vue';
 import { ref, onMounted } from 'vue';
 import { fetch } from '@tauri-apps/plugin-http';
-import { getSetting } from '../utils/dbUtils';
+import { useSettingStore } from '../stores/useSettingStore';
+
 const messages = ref([]);
 const userInput = ref('');
-const apiUrl = ref('');
-const apiKey = ref('');
-const model = ref('');
 const isLoading = ref(false);
 const chatSetting = ref('你是一个将小说格式化为json文本的专家，无论用户给你发送任何消息，你只能输出json格式的文本，格式为{"data":[{"content":"xxx","speaker":"xxx","emotion":"xxx"}，{"content":"xxx","speaker":"xxx","emotion":"xxx"}，...]}必须要和这个格式一模一样，不需要在开头加上```json，并且绝对不能漏掉小说的每一句话。');
 let controller = null;
 
+const settingStore = useSettingStore();
+
 onMounted(async () => {
-    apiUrl.value = await getSetting('chatApiUrl');
-    apiKey.value = await getSetting('chatApiKey');
-    model.value = await getSetting('chatModel');
+    await settingStore.init();
 });
 
 const setChatSetting = () => {
@@ -61,14 +60,14 @@ const sendMessage = () => {
     const signal = controller.signal;
     userInput.value = '';
 
-    fetch(apiUrl.value + '/v1/chat/completions', {
+    fetch(settingStore.chatApiUrl + '/v1/chat/completions', {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${apiKey.value}`,
+            'Authorization': `Bearer ${settingStore.chatApiKey}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            model: model.value,
+            model: settingStore.chatModel,
             messages: messages.value,
         }),
         signal
@@ -116,8 +115,7 @@ const deleteMessage = (index) => {
     display: flex;
     flex-direction: column;
     height: 60vh;
-    width: 100%;
-    max-width: 600px;
+    width: 80%;
     margin: 0 auto;
     border: 1px solid #e0e0e0;
     border-radius: 8px;

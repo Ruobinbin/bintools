@@ -64,7 +64,9 @@ export const dbInit = async (): Promise<void> => {
     // 创建大语言模型API表
     await db.execute(`
         CREATE TABLE IF NOT EXISTS llm_api (
-            url TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
             api_key TEXT NOT NULL
         )
     `);
@@ -151,25 +153,25 @@ export const setSetting = async (keyName: string, value: string): Promise<boolea
 
 //====================聊天API====================
 // 添加新的API
-export const addLLMApi = async (url: string, apiKey: string): Promise<boolean> => {
-    await db.execute('INSERT INTO llm_api (url, api_key) VALUES (?, ?)', [url, apiKey]);
+export const addLLMApi = async (name: string, url: string, apiKey: string): Promise<boolean> => {
+    await db.execute('INSERT INTO llm_api (name, url, api_key) VALUES (?, ?, ?)', [name, url, apiKey]);
     return true;
 };
 
 // 获取所有API
-export const getAllLLMApis = async (): Promise<Array<{ url: string, api_key: string }>> => {
+export const getAllLLMApis = async (): Promise<Array<{ id: number, name: string, url: string, api_key: string }>> => {
     const result = await db.select('SELECT * FROM llm_api');
-    return result as Array<{ url: string, api_key: string }>;
+    return result as Array<{ id: number, name: string, url: string, api_key: string }>;
 };
 
 // 更新API
-export const updateLLMApi = async (url: string, apiKey: string): Promise<boolean> => {
-    await db.execute('UPDATE llm_api SET api_key = ? WHERE url = ?', [apiKey, url]);
+export const updateLLMApi = async (id: number, name: string, url: string, apiKey: string): Promise<boolean> => {
+    await db.execute('UPDATE llm_api SET name = ?, url = ?, api_key = ? WHERE id = ?', [name, url, apiKey, id]);
     return true;
 };
 
 // 删除API
-export const deleteLLMApi = async (url: string): Promise<boolean> => {
-    await db.execute('DELETE FROM llm_api WHERE url = ?', [url]);
+export const deleteLLMApi = async (id: number): Promise<boolean> => {
+    await db.execute('DELETE FROM llm_api WHERE id = ?', [id]);
     return true;
 };

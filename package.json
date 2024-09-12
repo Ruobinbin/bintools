@@ -17,6 +17,7 @@
     "@tauri-apps/plugin-shell": ">=2.0.0-rc.0",
     "@tauri-apps/plugin-sql": "^2.0.0-rc.1",
     "element-plus": "^2.8.1",
+    "pinia": "^2.2.2",
     "vue": "^3.3.4"
   },
   "devDependencies": {
