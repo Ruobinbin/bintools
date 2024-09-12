@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { isRegistered, register } from '@tauri-apps/plugin-global-shortcut';
+import { dbInit } from "./utils/dbUtils";
 
 const currentWindow = Window.getCurrent();
 let inputElement = ref<HTMLInputElement>();
@@ -13,7 +14,7 @@ const handleInputEnter = async () => {
     case '/xs':
       await openWindow('novel', 'src/views/novel/novel.html');
       break;
-    case '/setting':
+    case '/set':
       await openWindow('setting', 'src/views/setting/setting.html');
       break;
     default:
@@ -22,6 +23,7 @@ const handleInputEnter = async () => {
 }
 
 onMounted(async () => {
+  await dbInit();
   // 当 input 元素失去焦点时，隐藏窗口
   inputElement.value?.addEventListener("blur", async () => {
     await currentWindow.hide();
