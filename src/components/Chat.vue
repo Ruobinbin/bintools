@@ -2,7 +2,7 @@
     <div class="chat-container">
         <el-text>当前模型: {{ settingStore.chatModel }}</el-text>
         <div class="chat-settings">
-            <input v-model="chatSetting" @input="setChatSetting" placeholder="改变触发..." />
+            <input v-model="messages[0].content" placeholder="改变触发..." />
         </div>
         <div class="chat-messages">
             <div v-for="(message, index) in messages" :key="index" :class="message.role">
@@ -22,15 +22,14 @@
 </template>
 
 <script setup>
+import OpenAI from 'openai';
 import { Delete } from '@element-plus/icons-vue';
 import { ref, onMounted } from 'vue';
-import { fetch } from '@tauri-apps/plugin-http';
 import { useSettingStore } from '../stores/useSettingStore';
 
-const messages = ref([]);
+const messages = ref([{ role: 'system', content: '你是一个将小说格式化为json文本的专家，无论用户给你发送任何消息，你只能输出json格式的文本，格式为{"data":[{"content":"xxx","speaker":"xxx","emotion":"xxx"}，{"content":"xxx","speaker":"xxx","emotion":"xxx"}，...]}必须要和这个格式一模一样，不需要在开头加上```json，并且绝对不能漏掉小说的每一句话。' }]);
 const userInput = ref('');
 const isLoading = ref(false);
-const chatSetting = ref('你是一个将小说格式化为json文本的专家，无论用户给你发送任何消息，你只能输出json格式的文本，格式为{"data":[{"content":"xxx","speaker":"xxx","emotion":"xxx"}，{"content":"xxx","speaker":"xxx","emotion":"xxx"}，...]}必须要和这个格式一模一样，不需要在开头加上```json，并且绝对不能漏掉小说的每一句话。');
 let controller = null;
 
 const settingStore = useSettingStore();
@@ -39,17 +38,7 @@ onMounted(async () => {
     await settingStore.init();
 });
 
-const setChatSetting = () => {
-    if (chatSetting.value.trim()) {
-        if (messages.value.length > 0 && messages.value[0].role === 'system') {
-            messages.value[0].content = chatSetting.value;
-        } else {
-            messages.value.unshift({ role: 'system', content: chatSetting.value });
-        }
-    }
-};
-
-const sendMessage = () => {
+const sendMessage = async () => {
     if (!userInput.value.trim() || isLoading.value) return;
 
     const userMessage = { role: 'user', content: userInput.value };
@@ -60,37 +49,22 @@ const sendMessage = () => {
     const signal = controller.signal;
     userInput.value = '';
 
-    fetch(settingStore.chatApiUrl + '/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${settingStore.chatApiKey}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            model: settingStore.chatModel,
-            messages: messages.value,
-        }),
-        signal
-    })
+    const openai = new OpenAI({
+        apiKey: settingStore.chatApiKey,
+        baseURL: settingStore.chatApiUrl,
+        dangerouslyAllowBrowser: true
+    });
+
+    openai.chat.completions.create({
+        model: settingStore.chatModel,
+        messages: messages.value,
+    }, { signal })
         .then(response => {
-            if (response.ok) {
-                return response.json();
-            } else {
-                return response.json().then(err => {
-                    throw new Error(err.error.message || 'API 请求失败');
-                });
-            }
-        })
-        .then(data => {
-            const aiMessage = { role: 'assistant', content: data.choices[0].message.content };
+            const aiMessage = { role: 'assistant', content: response.choices[0].message.content };
             messages.value.push(aiMessage);
         })
         .catch(error => {
-            if (error === 'Request canceled') {
-                messages.value.push({ role: 'system', content: '消息发送已停止。' });
-            } else {
-                messages.value.push({ role: 'system', content: `${error.message}` });
-            }
+            messages.value.push({ role: 'system', content: `${error.message}` });
         })
         .finally(() => {
             isLoading.value = false;
