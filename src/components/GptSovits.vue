@@ -1,5 +1,5 @@
 <template>
-  <el-button :loading="IsGptSovitsApiLoading" @click="startGptSovitsApi">
+  <el-button :loading="IsGptSovitsApiLoading" @click="startApi">
     {{ IsGptSovitsApiLoading ? "GPT-Sovits API 正在运行" : "启动 GPT-Sovits API" }}
   </el-button>
 
@@ -124,7 +124,7 @@
   <div v-if="currentReferAudio" style="margin: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
     <h4>当前参考音频路径:</h4>
     <p>{{ currentReferAudio.path }}</p>
-    <audio :src="convertFileSrc(currentReferAudio.originalPath)" controls></audio>
+    <audio :src="convertFileSrc(currentReferAudio.path)" controls></audio>
   </div>
 
   <div>
@@ -154,7 +154,7 @@
         <strong>参考音频路径:</strong>
         <el-select v-model="selectedReferPath[model.model_name]" placeholder="选择参考音频路径"
           @change="updateCurrentReferAudio(model.model_name, $event)">
-          <el-option v-for="path in model.ref_audio_paths" :key="path" :label="path" :value="path">
+          <el-option v-for="path in model.ref_audios" :key="path" :label="path.content" :value="path">
           </el-option>
         </el-select>
       </div>
@@ -163,24 +163,15 @@
 </template>
 
 <script lang="ts" setup>
-import { getFileNameFromPathWithoutExtension } from '../utils/defaultUtils'
+import { getGptSovitsModels, IRefAudio, IGptSovitsModel, setGptModel, setSovitsModel, startGptSovitsApi, isGptSovitsStart, ITTSRequestParams, fetchAudioBlob, localPathToContainerPath } from '../utils/gptSovitsUtils'
 import { ref, onMounted, computed, watch } from 'vue';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import { fetch } from '@tauri-apps/plugin-http';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
-import { listen } from '@tauri-apps/api/event';
 
-interface GptSovitsModel {
-  model_name: string;
-  gpt_model_paths: string[];
-  sovits_model_paths: string[];
-  ref_audio_paths: string[];
-}
-
-const models = ref<GptSovitsModel[]>([]);
+const models = ref<IGptSovitsModel[]>([]);
 const allRefAudioPaths = computed(() => {
   return models.value.flatMap(model =>
-    model.ref_audio_paths.map(path => localPathToContainerPath(path))
+    model.ref_audios.map(ref_audios => localPathToContainerPath(ref_audios.path))
   );
 });
 const selectedAuxRefAudioPaths = ref<string[]>([]);
@@ -189,14 +180,13 @@ const selectedSovitsPath = ref<Record<string, string | null>>({});
 const selectedReferPath = ref<Record<string, string | null>>({});
 const currentGptModel = ref<string | null>(null);
 const currentSovitsModel = ref<string | null>(null);
-const currentReferAudio = ref<{ path: string; originalPath: string } | null>(null);
+const currentReferAudio = ref<IRefAudio | null>(null);
 
 const IsGptSovitsApiLoading = ref(false);
-const isGptSovitsApiRunning = ref(false);
 
 const audioSrc = ref('');
 
-const gptSovitsAudioRequestParams = ref({
+const gptSovitsAudioRequestParams = ref<ITTSRequestParams>({
   "text": "",                   // str. (必填) 要合成的文本
   "text_lang": "zh",              // str. (必填) 要合成文本的语言
   "ref_audio_path": "",         // str. (必填) 参考音频路径
@@ -221,173 +211,99 @@ watch(currentReferAudio, (newVal) => {
   if (!newVal) {
     return;
   }
-  gptSovitsAudioRequestParams.value.ref_audio_path = newVal.path;
-  gptSovitsAudioRequestParams.value.prompt_text = getFileNameFromPathWithoutExtension(newVal.path);
+  gptSovitsAudioRequestParams.value.ref_audio_path = localPathToContainerPath(newVal.path);
+  gptSovitsAudioRequestParams.value.prompt_text = newVal.content;
 });
 
 
 onMounted(async () => {
-  listen('gpt_sovits_api_running', (event) => {
-    isGptSovitsApiRunning.value = event.payload as boolean;
-    if (isGptSovitsApiRunning.value) {
-      ElMessage.success('GPT-Sovits API 启动成功');
-    } else {
-      ElMessage.error('GPT-Sovits API 启动失败');
-    }
-    IsGptSovitsApiLoading.value = false;
-  });
-
-  models.value = await invoke<GptSovitsModel[]>('get_gpt_sovits_models');
+  models.value = await getGptSovitsModels();
 });
 
 const fetchAudio = async () => {
-  let audioBlob = await fetchAudioBlob(gptSovitsAudioRequestParams.value.text);
-  if (!audioBlob) return;
-  audioSrc.value = URL.createObjectURL(audioBlob);
-};
-
-const fetchAudioBlob = (text: string): Promise<Blob | null> => {
-  if (!isGptSovitsApiRunning.value) {
-    ElMessage.error('GPT-Sovits API 未运行');
-    return Promise.resolve(null);
-  }
-
   if (gptSovitsAudioRequestParams.value.ref_audio_path === '') {
     ElMessage.error('请选择参考音频路径');
     return Promise.resolve(null);
   }
 
-  gptSovitsAudioRequestParams.value.text = text;
   if (gptSovitsAudioRequestParams.value.text === '') {
     ElMessage.error('请输入文本');
     return Promise.resolve(null);
   }
 
-  return fetch('http://127.0.0.1:9880/tts', {
-    method: 'POST',
-    body: JSON.stringify(gptSovitsAudioRequestParams.value),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-    .then(response => {
-      if (!response.ok) {
-        return response.json().then(responseJson => {
-          throw new Error(responseJson.message);
-        });
-      }
-      return response.blob();
-    })
-    .catch(error => {
-      ElMessage.error(`获取音频失败: ${error.message}`);
-      return null;
-    });
-};
-defineExpose({ fetchAudioBlob });
-
-
-const localPathToContainerPath = (localPath: string) => {
-  let linuxPath = localPath.replace(/\\/g, '/');
-  const marker = 'gpt_sovits_model';
-  const markerIndex = linuxPath.indexOf(marker);
-  return linuxPath.substring(markerIndex);
+  await fetchAudioBlob(gptSovitsAudioRequestParams.value).then((audioBlob) => {
+    audioSrc.value = URL.createObjectURL(audioBlob);
+  }).catch((error) => {
+    ElMessage.error(`获取音频失败: ${error as string}`);
+  });
 };
 
-const startGptSovitsApi = async () => {
+const startApi = async () => {
   IsGptSovitsApiLoading.value = true;
-  try {
-    await invoke("start_gpt_sovits_api");
-  } catch (error) {
-    ElMessage.error(`启动 GPT-Sovits API 失败: ${error as string}`);
-  } finally {
-    IsGptSovitsApiLoading.value = false;
-  }
+  await startGptSovitsApi()
+    .then(() => {
+      ElMessage.success('GPT-Sovits API 启动成功');
+    })
+    .catch((error) => {
+      ElMessage.error(error as string);
+    })
+    .finally(() => {
+      IsGptSovitsApiLoading.value = false;
+    });
 };
 
 const updateCurrentGptModel = async (modelName: string, path: string) => {
+  if (!isGptSovitsStart) {
+    ElMessage.error('GPT-Sovits API 未运行，无法设置模型');
+    selectedGptPath.value[modelName] = null;
+    return false;
+  }
+
   const formattedPath = localPathToContainerPath(path);
-  const success = await setGptModel(formattedPath);
-  if (success) {
+  setGptModel(formattedPath).then(() => {
     for (const key in selectedGptPath.value) {
       if (key !== modelName) {
         selectedGptPath.value[key] = null;
       }
     }
     currentGptModel.value = formattedPath;
-  } else {
+    ElMessage.success('GPT 模型设置成功');
+  }).catch((error) => {
     selectedGptPath.value[modelName] = null;
-  }
+    ElMessage.error(`GPT 模型设置失败: ${error as string}`);
+  });
 };
 
 const updateCurrentSovitsModel = async (modelName: string, path: string) => {
+  if (!isGptSovitsStart) {
+    ElMessage.error('GPT-Sovits API 未运行，无法设置模型');
+    selectedSovitsPath.value[modelName] = null;
+    return false;
+  }
+  console.log(path)
   const formattedPath = localPathToContainerPath(path);
-  const success = await setSovitsModel(formattedPath);
-  if (success) {
+  console.log(formattedPath)
+  await setSovitsModel(formattedPath).then(() => {
     for (const key in selectedSovitsPath.value) {
       if (key !== modelName) {
         selectedSovitsPath.value[key] = null;
       }
     }
     currentSovitsModel.value = formattedPath;
-  } else {
+    ElMessage.success('Sovits 模型设置成功');
+  }).catch((error) => {
     selectedSovitsPath.value[modelName] = null;
-  }
+    ElMessage.error(`Sovits 模型设置失败: ${error as string}`);
+  });
 };
 
-const updateCurrentReferAudio = (modelName: string, path: string) => {
+const updateCurrentReferAudio = (modelName: string, refAudio: IRefAudio) => {
   for (const key in selectedReferPath.value) {
     if (key !== modelName) {
       selectedReferPath.value[key] = null;
     }
   }
-  currentReferAudio.value = {
-    path: localPathToContainerPath(path),
-    originalPath: path
-  };
-};
-
-const setGptModel = async (weightsPath: string): Promise<boolean> => {
-  if (!isGptSovitsApiRunning.value) {
-    ElMessage.error('GPT-Sovits API 未运行，无法设置模型');
-    return false;
-  }
-  try {
-    const response = await fetch(`http://127.0.0.1:9880/set_gpt_weights?weights_path=${encodeURIComponent(weightsPath)}`, {
-      method: 'GET',
-    });
-    if (response.status === 200) {
-      ElMessage.success('GPT 模型切换成功');
-      return true;
-    } else {
-      const errorData = await response.json();
-      ElMessage.error(`GPT 模型切换失败: ${errorData.message}`);
-    }
-  } catch (error) {
-    ElMessage.error('请求失败');
-  }
-  return false;
-};
-
-const setSovitsModel = async (weightsPath: string): Promise<boolean> => {
-  if (!isGptSovitsApiRunning.value) {
-    ElMessage.error('GPT-Sovits API 未运行，无法设置模型');
-    return false;
-  }
-  try {
-    const response = await fetch(`http://127.0.0.1:9880/set_sovits_weights?weights_path=${encodeURIComponent(weightsPath)}`, {
-      method: 'GET',
-    });
-    if (response.status === 200) {
-      ElMessage.success('Sovits 模型切换成功');
-      return true;
-    } else {
-      const errorData = await response.json();
-      ElMessage.error(`Sovits 模型切换失败: ${errorData.message}`);
-    }
-  } catch (error) {
-    ElMessage.error('请求失败');
-  }
-  return false;
+  currentReferAudio.value = refAudio;
 };
 </script>
 
