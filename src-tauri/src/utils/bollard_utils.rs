@@ -184,27 +184,9 @@ pub async fn start_gpt_sovits_container() -> Result<(), Error> {
 // 开启gpt-sovits API服务
 pub async fn start_gpt_sovits_api() -> Result<(), Error> {
     if is_container_running("gpt-sovits").await? {
-        app_handle().emit("gpt_sovits_api_running", true).unwrap();
+        return Ok(());
     } else {
         start_gpt_sovits_container().await?;
-
-        // let cmd = vec![
-        //     "python",
-        //     "api.py",
-        //     "-dr",
-        //     "gpt_sovits_model/syq/我整理完今天的照片就休息了，你也别熬夜打游戏哦。.wav",
-        //     "-dt",
-        //     "我整理完今天的照片就休息了，你也别熬夜打游戏哦。",
-        //     "-dl",
-        //     "zh",
-        //     "-d",
-        //     "cuda",
-        //     "-s",
-        //     "gpt_sovits_model/syq/sanyueqi_e15_s180.pth",
-        //     "-g",
-        //     "gpt_sovits_model/syq/sanyueqi-e15.ckpt",
-        // ];
-
         let cmd = vec![
             "python",
             "api_v2.py",
@@ -221,19 +203,15 @@ pub async fn start_gpt_sovits_api() -> Result<(), Error> {
         while let Some(result) = stream.next().await {
             match result {
                 Ok(output) => {
-                    app_handle().emit("gpt_sovits_api_log", &output).unwrap();
                     if output.contains("Press CTRL+C to quit") {
-                        app_handle().emit("gpt_sovits_api_running", true).unwrap();
+                        return Ok(());
                     }
                 }
                 Err(e) => {
-                    app_handle().emit("gpt_sovits_api_running", false).unwrap();
                     return Err(e);
                 }
             }
         }
-
-        app_handle().emit("gpt_sovits_api_running", false).unwrap();
     }
     Ok(())
 }
