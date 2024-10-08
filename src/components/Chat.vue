@@ -49,27 +49,32 @@ const sendMessage = async () => {
     const signal = controller.signal;
     userInput.value = '';
 
-    const openai = new OpenAI({
-        apiKey: settingStore.chatApiKey,
-        baseURL: settingStore.chatApiUrl,
-        dangerouslyAllowBrowser: true
+    const response = await fetch(`${settingStore.chatApiUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${settingStore.chatApiKey}`
+        },
+        body: JSON.stringify({
+            model: settingStore.chatModel,
+            messages: messages.value,
+        }),
+        signal
     });
 
-    openai.chat.completions.create({
-        model: settingStore.chatModel,
-        messages: messages.value,
-    }, { signal })
-        .then(response => {
-            const aiMessage = { role: 'assistant', content: response.choices[0].message.content };
-            messages.value.push(aiMessage);
-        })
-        .catch(error => {
-            messages.value.push({ role: 'system', content: `${error.message}` });
-        })
-        .finally(() => {
-            isLoading.value = false;
-            controller = null;
-        });
+    if (!response.ok) {
+        const error = await response.json();
+        console.log(error);
+        throw new Error('Failed to send message');
+    }
+
+    const data = await response.json();
+    console.log(data);
+    const aiMessage = { role: 'assistant', content: data.choices[0].message.content };
+    messages.value.push(aiMessage);
+
+    isLoading.value = false;
+    controller = null;
 };
 
 const stopMessage = () => {
