@@ -26,12 +26,26 @@ export const deleteTableByName = async (tableName: string): Promise<void> => {
 
 //====================初始化====================
 export const dbInit = async (): Promise<void> => {
+    //说话人描述
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS speaker_descriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            speaker TEXT,
+            description,
+            modelName TEXT
+        )
+    `);
+
     // 创建小说表格
     await db.execute(`
         CREATE TABLE IF NOT EXISTS novels (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            audioSrc TEXT NOT NULL,
-            content TEXT NOT NULL
+            audioSrc TEXT,
+            content TEXT,
+            speaker TEXT,
+            emotion TEXT,
+            model TEXT,
+            refAudioPath TEXT
         )
     `);
 
@@ -72,12 +86,27 @@ export const dbInit = async (): Promise<void> => {
     `);
 };
 
+//====================说话人描述====================
+//获取所有说话人描述
+export const getAllSpeakerDescriptions = async (): Promise<{ speaker: string, description: string, modelName: string }[]> => {
+    const result = await db.select('SELECT speaker, description, modelName FROM speaker_descriptions');
+    return result as { speaker: string, description: string, modelName: string }[];
+};
+
+//重置说话人描述
+export const resetSpeakerDescriptions = async (descriptions: { speaker: string, description: string, modelName: string }[]): Promise<void> => {
+    await db.execute('DELETE FROM speaker_descriptions');
+    for (const description of descriptions) {
+        await db.execute('INSERT INTO speaker_descriptions (speaker, description, modelName) VALUES (?, ?, ?)', [description.speaker, description.description, description.modelName]);
+    }
+};
+
 //====================小说====================
 // 重置小说表格
 export const resetNovelsTable = async (novels: INovel[]): Promise<void> => {
     await db.execute('DELETE FROM novels');
     for (const novel of novels) {
-        await db.execute('INSERT INTO novels (content, audioSrc) VALUES (?, ?)', [novel.content, novel.audioSrc]);
+        await db.execute('INSERT INTO novels (content, audioSrc, speaker, emotion, model, refAudioPath) VALUES (?, ?, ?, ?, ?, ?)', [novel.content, novel.audioSrc, novel.speaker, novel.emotion, novel.model, novel.refAudioPath]);
     }
 };
 
@@ -111,7 +140,13 @@ export const getAllVideos = async (): Promise<IVideo[]> => {
         duration: row.duration,
         thumbnails: JSON.parse(row.thumbnails) as IThumbnail[],
         selected: false,
+        isDownloading: false,
     }));
+};
+
+// 根据id删除视频
+export const deleteVideoById = async (id: string): Promise<void> => {
+    await db.execute('DELETE FROM videos WHERE id = ?', [id]);
 };
 
 // 获取所有博主的URL
