@@ -2,42 +2,99 @@
     <el-tabs tab-position="left">
         <el-tab-pane label="小说">
             <el-text class="mx-1" type="info">长度:{{ novelContents.length }}</el-text>
-            <el-input v-model="novelContents" style="width: 100%" autosize type="textarea" placeholder="小说内容" />
+            <el-button @click="formatNovel" :loading="isFormatting">格式化</el-button>
+            <el-input v-model="novelContents" style="width: 100%;" autosize type="textarea" placeholder="小说内容" />
         </el-tab-pane>
         <el-tab-pane label="生成音频">
-            <el-button @click="setNovelTable">清空并且设置表格</el-button>
-            <el-button @click="open(OUTPUT_PATH)">打开音频目录</el-button>
+            <el-button @click="formatNovelToJson" :loading="isFormatting">获取小说</el-button>
+            <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
             <el-button @click="insertNovel(-1)">插入</el-button>
-            <el-button @click="saveNovel">保存</el-button>
+            <el-button @click="saveNovel" :loading="isResetting">保存</el-button>
             <el-button @click="generateAllAudio">一键生成所有音频</el-button>
-            <br />
-            <el-table :data="novels">
-                <el-table-column label="索引" :min-width="20">
+            <el-button @click="splitNovel">手动分离：“</el-button>
+            <el-button @click="clearAllAudio">一键清空所有音频</el-button>
+            <el-divider>人物设置</el-divider>
+            <el-button @click="addSpeakerDescription">添加</el-button>
+            <el-table :data="speakerDescriptionsList">
+                <el-table-column prop="speaker" label="speaker">
                     <template #default="scope">
-                        {{ scope.$index }}
+                        <el-input v-model="scope.row.speaker" placeholder="输入说话人"></el-input>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="modelName" label="modelName">
+                    <template #default="scope">
+                        <el-select v-model="scope.row.modelName" placeholder="选择模型"
+                            @change="setSpeakerModel(scope.row.speaker, $event)">
+                            <el-option v-for="model in gptSovitsModels" :key="model.model_name"
+                                :label="model.model_name" :value="model.model_name"></el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="description" label="描述">
+                    <template #default="scope">
+                        <el-input v-model="scope.row.description" placeholder="输入描述"></el-input>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <el-divider>小说</el-divider>
+            <el-table :data="currentPageData">
+                <el-table-column prop="speaker" label="speaker">
+                    <template #default="scope">
+                        <el-select v-model="scope.row.speaker" placeholder="选择说话人"
+                            @change="speakerChanged(scope.row, $event)">
+                            <el-option v-for="speakerDescription in speakerDescriptionsList"
+                                :key="speakerDescription.speaker" :label="speakerDescription.speaker"
+                                :value="speakerDescription.speaker">
+                            </el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="model" label="model">
+                    <template #default="scope">
+                        <el-tag v-if="!scope.row.model" type="danger">未设置</el-tag>
+                        <el-tag v-else>{{ scope.row.model }}</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="emotion" label="emotion">
+                    <template #default="scope">
+                        <el-input v-model="scope.row.emotion" placeholder="输入情感"></el-input>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="refAudioPath" label="refAudioPath">
+                    <template #default="scope">
+                        <el-select v-model="scope.row.refAudioPath" placeholder="选择参考音频路径">
+                            <el-option v-for="audioPath in getRefAudiosPathByNovel(scope.row)" :key="audioPath"
+                                :label="audioPath" :value="audioPath">
+                            </el-option>
+                        </el-select>
+                        <audio v-if="scope.row.refAudioPath" :src="convertFileSrc(scope.row.refAudioPath)"
+                            controls></audio>
                     </template>
                 </el-table-column>
                 <el-table-column prop="content" label="content">
                     <template #default="scope">
-                        <el-input v-model="scope.row.content" placeholder="请输入内容"></el-input>
+                        <el-input v-model="scope.row.content" autosize type="textarea" placeholder="请输入内容"
+                            :input-style="{ color: isTextContained(scope.row.content) ? 'red' : 'black' }"></el-input>
                     </template>
                 </el-table-column>
                 <el-table-column prop="audioSrc" label="audioSrc">
                     <template #default="scope">
-                        <audio :src="convertFileSrc(scope.row.audioSrc)" controls></audio>
+                        <audio v-if="scope.row.audioSrc" :src="convertFileSrc(scope.row.audioSrc)" controls></audio>
                     </template>
                 </el-table-column>
                 <el-table-column label="操作">
                     <template #default="scope">
-                        <el-button @click="generateAudio(scope.$index)" :loading="scope.row.loading">生成音频</el-button>
+                        <el-button @click="generateAudio(scope.row)" :loading="scope.row.loading">生成音频</el-button>
                         <el-button @click="delNovel(scope.$index)">删除</el-button>
                         <el-button @click="insertNovel(scope.$index)">插入</el-button>
                     </template>
                 </el-table-column>
             </el-table>
+            <el-pagination background layout="prev, pager, next" :total="novels.length" :page-size="pageSize"
+                :current-page.sync="currentPage" @current-change="handlePageChange" />
         </el-tab-pane>
         <el-tab-pane label="gpt-sovits">
-            <GptSovits ref="gptSovitsRef" />
+            <GptSovits />
         </el-tab-pane>
         <el-tab-pane label="视频">
             <audio src=""></audio>
@@ -47,10 +104,10 @@
                         {{ channel }}
                     </el-option>
                 </el-select>
-                <el-button @click="deleteCurrentChannelUrl">删除当前博主链接</el-button>
+                <el-button type="primary" @click="addNewChannelUrl">添加</el-button>
+                <el-button type="danger" @click="deleteCurrentChannelUrl">删除</el-button>
             </div>
-            <el-input v-model="newChannelUrl" placeholder="输入新的博主主页链接"
-                @keyup.enter="addNewChannelUrl(newChannelUrl)"></el-input>
+            <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
             <el-button @click="getVideoList">获取视频列表</el-button>
             <audio ref="audios" controls></audio>
             <el-text>所选视频时长: {{ totalVideoDuration }}</el-text>
@@ -65,11 +122,15 @@
                         <p><el-link type="primary" @click.prevent="open(video.url)">点击此处观看</el-link></p>
                         <p><el-text>ID: {{ video.id }}</el-text></p>
                         <p><el-text>时长: {{ video.duration }} 秒</el-text></p>
+                        <el-button @click="delVideo(video.id)">删除</el-button>
+                        <el-button @click="video.downloadVideo('/workspace/novel_output/video')"
+                            :loading="video.isDownloading">下载</el-button>
                     </div>
                 </div>
             </div>
         </el-tab-pane>
         <el-tab-pane label="最后合成">
+
             <el-steps :active="currentStep" finish-status="success">
                 <el-step title="生成字幕文件" />
                 <el-step title="下载视频" />
@@ -77,6 +138,7 @@
                 <el-step title="合成最终视频" />
             </el-steps>
             <el-button @click="generateVideo">合成视频</el-button>
+            <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
             <el-select v-model="videoOrientation" placeholder="选择视频方向">
                 <el-option label="横屏 (Landscape)" value="landscape"></el-option>
                 <el-option label="竖屏 (Portrait)" value="portrait"></el-option>
@@ -96,15 +158,19 @@
 <script lang="ts" setup>
 import { open } from '@tauri-apps/plugin-shell';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-
 import { resourceDir } from '@tauri-apps/api/path';
 import { getAudioDuration, getFileNameFromPath } from '../../utils/defaultUtils'
+import { IGptSovitsModel, ITTSRequestParams, fetchAudioBlob, getGptSovitsModels, localPathToContainerPath, setGptModel, setSovitsModel, isGptSovitsStart } from '../../utils/gptSovitsUtils'
+
 import { Novel } from '../../utils/novelUtils'
 import { IThumbnail, Video } from '../../utils/ytdlpUitls'
-import { getAllNovels, resetNovelsTable, getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl } from '../../utils/dbUtils'
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { getAllNovels, resetNovelsTable, getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl, getSetting, deleteVideoById, getAllSpeakerDescriptions, resetSpeakerDescriptions } from '../../utils/dbUtils'
+import { ElButton, ElMessage, ElMessageBox } from 'element-plus';
 import GptSovits from '../../components/GptSovits.vue';
+import DockerLog from '../../components/DockerLog.vue';
 import { computed, onMounted, ref } from 'vue';
+import { zodResponseFormat } from "openai/helpers/zod";
+import { z } from "zod";
 
 const OUTPUT_PATH = ref('');//输出路径
 let novelContents = ref('') //小说内容
@@ -117,7 +183,6 @@ let totalVideoDuration = computed(() => {
 });//视频总时长
 let channelUrls = ref<string[]>([]); // 博主主页链接列表
 let selectedChannel = ref(''); // 当前选中的博主主页链接
-let newChannelUrl = ref(''); // 新添加的博主主页链接
 const audios = ref<HTMLAudioElement>(); // 所有音频
 let videoOrientation = ref('portrait'); // 默认竖屏
 let currentStep = ref(0);  // 当前步骤的索引
@@ -125,14 +190,23 @@ let bgmList = ref<string[]>([]); // BGM列表
 let selectedBgm = ref<string>(''); // 选择的BGM
 let BgmUrl = ref(''); // 下载BGM的链接
 let bgmVolume = ref(0.1); // 默认音量为0.1（10%）
-const gptSovitsRef = ref<InstanceType<typeof GptSovits> | null>(null);
+let isFormatting = ref(false); // 是否正在格式化
+let gptSovitsModels = ref<IGptSovitsModel[]>([]); // gpt-sovits模型列表
+let currentModelName = ref<string>(''); // 当前模型
+let currentPage = ref(1); // 当前页
+const pageSize = ref(6);
+let currentPageData = computed(() => novels.value.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value)); // 当前页的小说
+let speakerDescriptionsList = ref<{ speaker: string, description: string, modelName: string }[]>([]); // 说话人描述列表
+let isResetting = ref(false); // 是否正在重置
+
 
 //载入时触发
 onMounted(async () => {
-    OUTPUT_PATH.value = await resourceDir() + '\\user_files\\novel_output';
-    //载入BGM列表
+    OUTPUT_PATH.value = (await resourceDir()) + '\\user_files\\novel_output';
     fetchBgmList();
-    novels.value = await getAllNovels()
+    novels.value = await getAllNovels();
+    speakerDescriptionsList.value = await getAllSpeakerDescriptions();
+    gptSovitsModels.value = await getGptSovitsModels();
     videoList.value = (await getAllVideos()).map(video => {
         let thumbnails: IThumbnail[] = video.thumbnails;
         return new Video(video.id, video.url, video.duration, thumbnails);
@@ -141,8 +215,183 @@ onMounted(async () => {
     audios.value!.src = convertFileSrc(OUTPUT_PATH.value + '\\audios.wav');
 });
 
+const addSpeakerDescription = () => {
+    speakerDescriptionsList.value.push({ speaker: '', description: '', modelName: '' });
+}
+
+const formatNovel = () => {
+    novelContents.value = novelContents.value
+        .replace(/[“「]/g, '【')    // 替换左引号
+        .replace(/[”」]/g, '】')    // 替换右引号
+        // 使用负向前瞻，避免替换【】中的标点符号
+        .replace(/[:：,，。](?![^【】]*】)/g, '\n')
+        .replace(/】/g, '】\n')
+        .replace(/\n\s*\n/g, '\n'); // 替换连续的换行符为一个换行符
+
+    novelContents.value = novelContents.value
+        .split('\n')
+        .filter(line => line.trim() !== '')
+        .map((line, index) => `${index + 1}. ${line}`)
+        .join('\n');
+};
+
+const clearAllAudio = async () => {
+    for (const novel of novels.value) {
+        novel.audioSrc = '';
+    }
+    ElMessage.success('清空所有音频成功');
+}
+
+const handlePageChange = (page: number) => {
+    currentPage.value = page;
+};
+
+const isTextContained = (text: string): boolean => {
+    const regex = /[:：]["“‘']/;
+    const result = regex.test(text);
+    return result;
+};
+
+const splitNovel = () => {
+    novels.value.filter(novel => isTextContained(novel.content)).forEach(novel => {
+        let [part1, part2] = novel.content.split(/[:：]/);
+        novel.content = part2;
+        let newNovel = new Novel({ content: part1, speaker: '旁白' });
+        novels.value.splice(novels.value.indexOf(novel), 0, newNovel);
+    });
+}
+
+const speakerChanged = (novel: Novel, speaker: string) => {
+    const modelName = speakerDescriptionsList.value.find(description => description.speaker === speaker)?.modelName;
+
+    if (modelName) {
+        novel.model = modelName;
+        const model = gptSovitsModels.value.find(m => m.model_name === modelName);
+        if (model) {
+            const refAudios = model.ref_audios.filter(audio => audio.emotion === novel.emotion || audio.emotion === "平静");
+            if (refAudios.length > 0) {
+                const randomIndex = Math.floor(Math.random() * refAudios.length);
+                novel.refAudioPath = refAudios[randomIndex].path;
+            }
+        }
+
+    }
+}
+
+//设置说话人模型
+const setSpeakerModel = (speaker: string, modelName: string) => {
+    const speakerNovels = novels.value.filter(novel => novel.speaker === speaker);
+    speakerNovels.forEach(novel => {
+        novel.model = modelName;
+        const model = gptSovitsModels.value.find(m => m.model_name === novel.model);
+        if (model) {
+            const refAudios = model.ref_audios.filter(audio => audio.emotion === novel.emotion || audio.emotion === "平静");
+            if (refAudios.length > 0) {
+                const randomIndex = Math.floor(Math.random() * refAudios.length);
+                novel.refAudioPath = refAudios[randomIndex].path;
+            }
+        }
+    });
+};
+
+//获取说话人模型对应的参考音频路径
+const getRefAudiosPathByNovel = (novel: Novel) => {
+    const model = gptSovitsModels.value.find(m => m.model_name === novel.model);
+    if (model) {
+        const refAudios = model.ref_audios.filter(audio => audio.emotion === novel.emotion);
+        if (refAudios.length > 0) {
+            return refAudios.map(audio => audio.path);
+        }
+        return model.ref_audios.map(audio => audio.path);
+    }
+    return [];
+};
+
+//格式化为json
+const formatNovelToJson = async () => {
+    isFormatting.value = true;
+    if (!novelContents.value) {
+        ElMessage.warning('小说内容不能为空');
+        isFormatting.value = false;
+        return;
+    }
+
+    const emotion = z.enum(['平静', '愤怒', '高兴', '悲伤', '惊讶', '恐惧', '厌恶', '困惑', '紧张']);
+
+    const novel = z.object({
+        content: z.string(),
+        speaker: z.string(),
+        emotion: emotion,
+    });
+
+    const speakerDescriptions = z.object({
+        speaker: z.string(),
+        description: z.string(),
+    });
+
+    const novelResponse = z.object({
+        speakerDescriptions: z.array(speakerDescriptions),
+        novels: z.array(novel),
+    });
+
+    let chatApiKey = await getSetting('chatApiKey') ?? ""
+    let chatApiUrl = await getSetting('chatApiUrl') ?? ""
+    let chatModel = await getSetting('chatModel') ?? ""
+
+    const messages = [
+        {
+            role: 'system',
+            content: `为小说中的每个人物设置简介,即便是没有名字的人物也要,简介最好说明性别。
+            理解小说后根据上下文判断每个编号后内容的说话人物是谁以及情感,并设置content,speaker,emotion。
+            emotion必须从以下选择: ${emotion.options.join(', ')},没有就设置为平静,不要设置为选项中没有的!
+            【】这俩符号中间的内容是小说人物说的话。
+            旁白也是speaker,emotion为平静。`
+        },
+        {
+            role: 'user',
+            content: novelContents.value
+        }
+    ];
+
+    try {
+        const response = await fetch(`${chatApiUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${chatApiKey}`
+            },
+            body: JSON.stringify({
+                model: chatModel,
+                messages: messages,
+                response_format: zodResponseFormat(novelResponse, "novelResponse"),
+            })
+        });
+        if (!response.ok) {
+            throw new Error(`格式化小说失败: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log(data)
+        const responseJson = JSON.parse(data.choices[0].message.content ?? '');
+        speakerDescriptionsList.value = responseJson.speakerDescriptions;
+        novels.value = responseJson.novels.map((novel: any) => ({
+            content: novel.content,
+            speaker: novel.speaker,
+            emotion: novel.emotion,
+        }));
+    } catch (error) {
+        ElMessage.error(`格式化小说失败: ${error as string}`);
+    } finally {
+        isFormatting.value = false;
+    }
+}
+
 //添加博主主页链接
-const addNewChannelUrl = async (url: string) => {
+const addNewChannelUrl = async () => {
+    const { value: url } = await ElMessageBox.prompt('请输入新的博主主页链接', '添加博主主页链接', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+    });
+
     if (url) {
         const success = await addChannelUrl(url);
         if (success) {
@@ -155,11 +404,22 @@ const addNewChannelUrl = async (url: string) => {
 }
 //保存小说到数据库
 const saveNovel = async () => {
-    await resetNovelsTable(novels.value).then(() => {
-        ElMessage.success('重置小说数据成功');
-    }).catch((error) => {
-        ElMessage.error(`重置小说数据失败: ${error as string}`);
-    });
+    isResetting.value = true;
+    try {
+        await resetNovelsTable(novels.value);
+        await resetSpeakerDescriptions(speakerDescriptionsList.value);
+        ElMessage.success('重置成功');
+    } catch (error) {
+        ElMessage.error(`重置数据失败: ${error as string}`);
+    } finally {
+        isResetting.value = false;
+    }
+}
+
+//删除视频
+const delVideo = async (id: string) => {
+    await deleteVideoById(id);
+    videoList.value = videoList.value.filter(video => video.id !== id);
 }
 
 // 删除当前选中的博主URL
@@ -168,6 +428,7 @@ const deleteCurrentChannelUrl = async () => {
         await deleteChannelUrlByUrl(selectedChannel.value);
         channelUrls.value = channelUrls.value.filter(channel => channel !== selectedChannel.value);
         selectedChannel.value = '';
+        ElMessage.success('删除博主主页链接成功');
     } else {
         ElMessage.warning('请选择一个博主链接');
     }
@@ -198,6 +459,12 @@ const fetchBgmList = async () => {
 };
 
 const synthesizeAllAudio = async () => {
+
+    if (novels.value.some(novel => !novel.audioSrc)) {
+        ElMessage.warning('部分音频未生成，请先生成音频');
+        return;
+    }
+
     try {
         let filePath = `${OUTPUT_PATH.value}\\audios.txt`;
         let text = novels.value.map(novel => `file /workspace/novel_output/${getFileNameFromPath(novel.audioSrc as string)}`).join('\n');
@@ -327,9 +594,9 @@ const generateVideo = async () => {
             "-i", "/workspace/novel_output/audios.wav",
             ...(selectedBgm.value ? ["-stream_loop", "-1", "-i", `/workspace/novel_output/bgm/${getFileNameFromPath(selectedBgm.value)}`] : []),
             ...(selectedBgm.value ? ["-filter_complex", `[2:a]volume=${bgmVolume.value}[bgm]; [1:a][bgm]amix=inputs=2:duration=first[a]`] : []),
-            "-vf", `subtitles=/workspace/novel_output/audios.srt:force_style='FontName=Noto Sans CJK SC,FontSize=20,PrimaryColour=&H00FFFF&,WrapStyle=0,Spacing=${isLandscape ? -1 : -3},Alignment=${isLandscape ? 2 : 10}'`,
-            ...(selectedBgm.value ? ["-map", "0:v"] : []),
-            ...(selectedBgm.value ? ["-map", "[a]"] : []),
+            "-vf", `subtitles=/workspace/novel_output/audios.srt:force_style='FontName=Noto Sans CJK SC,FontSize=12,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,Outline=1,WrapStyle=0,Spacing=-1,Alignment=${isLandscape ? 2 : 10}'`,
+            "-map", "0:v",
+            ...(selectedBgm.value ? ["-map", "[a]"] : ["-map", "1:a"]),
             "-c:v", "libx264",
             "-preset", "fast",
             "-c:a", "aac",
@@ -348,64 +615,103 @@ const generateVideo = async () => {
     }
 };
 
-// 生成音频
-const generateAudio = async (novelIndex: number) => {
-    novels.value[novelIndex].loading = true
-    await gptSovitsRef.value?.fetchAudioBlob(novels.value[novelIndex].content).then(async (audioBlob) => {
-        novels.value[novelIndex].loading = false
-        if (!audioBlob) return;
-        const audioData = Array.from(new Uint8Array(await audioBlob.arrayBuffer()));
-        const audioName = `audio_${Date.now()}.wav`;
-        novels.value[novelIndex].audioSrc = await invoke("save_novel_audio", { audioData, audioName }) as string;
-    })
+const generateAudio = async (novel: Novel) => {
+    novel.loading = true;
+    try {
+        if (!isGptSovitsStart) {
+            throw new Error('GPT Sovits 未启动，请先启动');
+        }
+
+        if (!novel.speaker || !novel.model) {
+            throw new Error('未设置说话人模型');
+        }
+
+        const model = gptSovitsModels.value.find(m => m.model_name === novel.model);
+        if (!model) {
+            throw new Error(`未找到对应的模型: ${novel.model}`);
+        }
+
+        const selectedRefAudio = model.ref_audios.find(audio => audio.path === novel.refAudioPath);
+        if (!selectedRefAudio) {
+            throw new Error('参考音频不存在');
+        }
+
+        let requestParams: ITTSRequestParams = {
+            "text": novel.content,                   // str. (必填) 要合成的文本
+            "text_lang": "zh",              // str. (必填) 要合成文本的语言
+            "ref_audio_path": localPathToContainerPath(selectedRefAudio.path),         // str. (必填) 参考音频路径
+            "aux_ref_audio_paths": [],    // list. (可选) 辅助参考音频路径，用于多说话人音调融合
+            "prompt_text": selectedRefAudio.content,            // str. (可选) 参考音频的提示文本
+            "prompt_lang": selectedRefAudio.language,            // str. (必填) 参考音频提示文本的语言
+            "top_k": 5,                   // int. top k 采样
+            "top_p": 1,                   // float. top p 采样
+            "temperature": 1,             // float. 采样的温度
+            "text_split_method": "cut5",  // str. 文本拆分方法，参见 text_segmentation_method.py 了解详细信息
+            "batch_size": 1,              // int. 推理时的批处理大小
+            "batch_threshold": 0.75,      // float. 批处理拆分的阈值
+            "split_bucket": true,         // bool. 是否将批处理拆分成多个桶
+            "speed_factor": 1.0,           // float. 控制合成音频的速度
+            "streaming_mode": false,      // bool. 是否返回流式响应
+            "seed": -1,                   // int. 随机种子，用于复现
+            "parallel_infer": true,       // bool. 是否使用并行推理
+            "repetition_penalty": 1.35    // float. T2S 模型的重复惩罚
+        }
+
+        if (currentModelName.value !== model.model_name) {
+            await setGptModel(localPathToContainerPath(model.gpt_model_paths[0]));
+            await setSovitsModel(localPathToContainerPath(model.sovits_model_paths[0]));
+            currentModelName.value = model.model_name;
+            ElMessage.success('切换模型成功');
+        }
+
+        await fetchAudioBlob(requestParams).then(async (audioBlob) => {
+            const audioData = Array.from(new Uint8Array(await audioBlob.arrayBuffer()));
+            const audioName = `audio_${Date.now()}.wav`;
+            novel.audioSrc = await invoke("save_novel_audio", { audioData, audioName }) as string;
+        })
+    } catch (error) {
+        ElMessage.error(`${error as string}`);
+        throw error;
+    } finally {
+        novel.loading = false;
+    }
 }
+
+// 生成音频
+// const generateAudioByIndex = async (novelIndex: number) => {
+//     let novel = currentPageData.value[novelIndex];
+//     novel.loading = true;
+//     console.log(novel.content)
+//     console.log(novel.loading)
+
+// }
+
+
 //一键生成所有音频
 const generateAllAudio = async () => {
-    for (let novel of novels.value) {
+    for (const novel of novels.value) {
         if (novel.audioSrc) {
             continue;
         }
 
-        const novelIndex = novels.value.indexOf(novel);
-        await generateAudio(novelIndex);
+        try {
+            await generateAudio(novel);
+        } catch (error) {
+            return;
+        }
     }
     await synthesizeAllAudio();
 };
 // 删除小说
 const delNovel = (novelIndex: number) => {
-    novels.value.splice(novelIndex, 1)
+    const globalIndex = (currentPage.value - 1) * pageSize.value + novelIndex;
+    novels.value.splice(globalIndex, 1)
 }
 // 插入小说
 const insertNovel = (novelIndex: number) => {
-    novels.value.splice(novelIndex + 1, 0, new Novel());
+    const globalIndex = (currentPage.value - 1) * pageSize.value + novelIndex;
+    novels.value.splice(globalIndex + 1, 0, new Novel());
 }
-
-// 设置表格
-const setNovelTable = () => {
-    ElMessageBox.confirm(
-        '此操作会清空表格, 是否继续?',
-        'Warning',
-        {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning',
-        }
-    )
-        .then(() => {
-            if (novelContents.value) {
-                novels.value = []
-                novelContents.value.split('\n').map((content) => {
-                    let novel = new Novel(content)
-                    novels.value.push(novel)
-                })
-            }
-        })
-        .catch(() => {
-            ElMessage.info('已取消');
-        })
-}
-
-
 
 </script>
 

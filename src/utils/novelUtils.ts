@@ -1,24 +1,37 @@
-//格式话小说文本
-function formatNovelText(text: string): string {
-    const regex = new RegExp(`([。])([”】]?)`, 'g');
-    const newText = text.replace(regex, (match) => {
-        return match + '\n';
-    });
-    return newText;
-}
-
-interface INovel {
+export interface INovel {
     content: string;
     audioSrc: string | null;
     loading: boolean;
+    speaker: string | null;
+    emotion: string | null;
+    model: string | null;
+    refAudioPath: string | null;
 }
 
-class Novel implements INovel {
-    constructor(
-        public content: string = '',
-        public audioSrc: string | null = null,
-        public loading: boolean = false
-    ) { }
+export class Novel implements INovel {
+    content: string;
+    audioSrc: string | null;
+    loading: boolean;
+    speaker: string | null;
+    emotion: string | null;
+    model: string | null;
+    refAudioPath: string | null;
+
+    constructor({
+        content = "",
+        audioSrc = null,
+        loading = false,
+        speaker = null,
+        emotion = "平静",
+        model = null,
+        refAudioPath = null
+    }: Partial<INovel> = {}) {
+        this.content = content;
+        this.audioSrc = audioSrc;
+        this.loading = loading;
+        this.speaker = speaker;
+        this.emotion = emotion;
+        this.model = model;
+        this.refAudioPath = refAudioPath;
+    }
 }
-export { Novel, formatNovelText };
-export type { INovel };

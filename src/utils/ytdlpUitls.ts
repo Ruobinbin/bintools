@@ -13,6 +13,7 @@ interface IVideo {
     duration: number;
     thumbnails: IThumbnail[];
     selected: boolean;
+    isDownloading: boolean; // 新增变量
 }
 
 class Video implements IVideo {
@@ -21,6 +22,7 @@ class Video implements IVideo {
     public duration: number;
     public thumbnails: IThumbnail[];
     public selected: boolean;
+    public isDownloading: boolean;
 
     constructor(id: string, url: string, duration: number | string, thumbnails: IThumbnail[]) {
         this.id = id;
@@ -28,6 +30,7 @@ class Video implements IVideo {
         this.duration = this.validateDuration(duration);
         this.thumbnails = thumbnails;
         this.selected = false;
+        this.isDownloading = false;
     }
 
     public validateDuration(value: number | string): number {
@@ -50,19 +53,24 @@ class Video implements IVideo {
     }
 
     public async downloadVideo(path: string): Promise<void> {
+        this.isDownloading = true;
         const outputFilePath = `${path}/${this.id}.mp4`;
 
         const cmd = [
             this.url,
-            '-f', 'bestvideo',
+            // '-f', 'bestvideo',
             '-o', outputFilePath
         ];
 
-        await invoke<string>('run_yt_dlp_cmd', { cmd });
-
-        await insertVideo(this);
+        try {
+            await invoke<string>('run_yt_dlp_cmd', { cmd });
+            await insertVideo(this);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            this.isDownloading = false;
+        }
     }
 }
-
 export { Video };
 export type { IVideo, IThumbnail };
