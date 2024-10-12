@@ -67,14 +67,6 @@ export const dbInit = async (): Promise<void> => {
         )
     `);
 
-    // 创建设置表
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS settings (
-            key_name TEXT PRIMARY KEY,
-            value TEXT
-        )
-    `);
-
     // 创建大语言模型API表
     await db.execute(`
         CREATE TABLE IF NOT EXISTS llm_api (
@@ -172,20 +164,6 @@ export const deleteChannelUrlByUrl = async (url: string): Promise<boolean> => {
     await db.execute('DELETE FROM channel_urls WHERE url = ?', [url]);
     return true;
 };
-
-//====================设置====================
-// 获取设置值
-export const getSetting = async (keyName: string): Promise<string | null> => {
-    const result = await db.select<{ value: string }[]>('SELECT value FROM settings WHERE key_name = ?', [keyName]);
-    return result.length > 0 ? result[0].value : null;
-};
-
-// 更新设置值
-export const setSetting = async (keyName: string, value: string): Promise<boolean> => {
-    await db.execute('INSERT OR REPLACE INTO settings (key_name, value) VALUES (?, ?)', [keyName, value]);
-    return true;
-};
-
 //====================聊天API====================
 // 添加新的API
 export const addLLMApi = async (name: string, url: string, apiKey: string): Promise<boolean> => {
