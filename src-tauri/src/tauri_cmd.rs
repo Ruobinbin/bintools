@@ -2,6 +2,7 @@ use crate::utils;
 use std::path::Path;
 use std::path::PathBuf;
 use tauri::command;
+use tokio;
 
 use crate::{gpt_sovits_model_dir, novel_output_dir};
 
@@ -119,4 +120,32 @@ pub async fn open_path_or_file(path: String) -> Result<(), String> {
         Ok(_) => Ok(()),
         Err(e) => Err(e),
     }
+}
+
+//edge tts
+
+#[command]
+pub async fn edge_tts(
+    speaker: String,
+    audio_path: String,
+    rate: i32,
+    text: String,
+) -> Result<(), String> {
+    let result = tokio::task::spawn_blocking(move || {
+        utils::edge_tts_utils::edge_tts(&speaker, &audio_path, rate, &text)
+    })
+    .await
+    .unwrap();
+
+    match result {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+//edge tts 获取声音列表
+#[command]
+pub async fn edge_tts_get_voices() -> Result<Vec<String>, String> {
+    let voices = utils::edge_tts_utils::edge_tts_get_voices();
+    Ok(voices)
 }

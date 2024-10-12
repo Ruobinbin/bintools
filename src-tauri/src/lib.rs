@@ -105,6 +105,8 @@ pub fn run() {
             tauri_cmd::check_file_exists,
             tauri_cmd::create_dir_and_get_files,
             tauri_cmd::open_path_or_file,
+            tauri_cmd::edge_tts,
+            tauri_cmd::edge_tts_get_voices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

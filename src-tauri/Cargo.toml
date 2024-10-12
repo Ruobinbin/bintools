@@ -27,6 +27,7 @@ bollard = "*"
 once_cell = "*"
 futures = "*"
 tokio = { version = "1", features = ["full"] }
+msedge-tts = "0.2.2"
 
 
 [dependencies.tauri-plugin-sql]
