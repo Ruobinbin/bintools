@@ -3,14 +3,18 @@
         <el-tab-pane label="小说">
             <el-text class="mx-1" type="info">长度:{{ novelContents.length }}</el-text>
             <el-button @click="formatNovel" :loading="isFormatting">格式化</el-button>
+            <el-button @click="edgeTtsGenerateAllAudio" :loading="isEdgeTtsGenerating">edgeTts生成音频</el-button>
+            <audio :src="`${convertFileSrc(audiosSrc)}?t=${new Date().getTime()}`" controls></audio>
             <el-input v-model="novelContents" style="width: 100%;" autosize type="textarea" placeholder="小说内容" />
         </el-tab-pane>
         <el-tab-pane label="生成音频">
-            <el-button @click="formatNovelToJson" :loading="isFormatting">获取小说</el-button>
+            <el-button @click="formatNovelToJson" :loading="isFormatting">chat格式化小说</el-button>
+            <el-button @click="formatNovel" :loading="isFormatting">格式化小说</el-button>
             <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
             <el-button @click="insertNovel(-1)">插入</el-button>
             <el-button @click="saveNovel" :loading="isResetting">保存</el-button>
             <el-button @click="generateAllAudio">一键生成所有音频</el-button>
+            <el-button @click="edgeTtsGenerateAllAudio">edgeTts一键生成所有音频</el-button>
             <el-button @click="splitNovel">手动分离：“</el-button>
             <el-button @click="clearAllAudio">一键清空所有音频</el-button>
             <el-divider>人物设置</el-divider>
@@ -85,6 +89,8 @@
                 <el-table-column label="操作">
                     <template #default="scope">
                         <el-button @click="generateAudio(scope.row)" :loading="scope.row.loading">生成音频</el-button>
+                        <el-button @click="edgeTtsGenerateAudio(scope.row)"
+                            :loading="scope.row.loading">edgeTts生成音频</el-button>
                         <el-button @click="delNovel(scope.$index)">删除</el-button>
                         <el-button @click="insertNovel(scope.$index)">插入</el-button>
                     </template>
@@ -109,7 +115,6 @@
             </div>
             <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
             <el-button @click="getVideoList">获取视频列表</el-button>
-            <audio ref="audios" controls></audio>
             <el-text>所选视频时长: {{ totalVideoDuration }}</el-text>
             <el-divider>博主视频</el-divider>
             <div>
@@ -164,7 +169,7 @@ import { IGptSovitsModel, ITTSRequestParams, fetchAudioBlob, getGptSovitsModels,
 
 import { Novel } from '../../utils/novelUtils'
 import { IThumbnail, Video } from '../../utils/ytdlpUitls'
-import { getAllNovels, resetNovelsTable, getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl, getSetting, deleteVideoById, getAllSpeakerDescriptions, resetSpeakerDescriptions } from '../../utils/dbUtils'
+import { getAllNovels, resetNovelsTable, getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl, deleteVideoById, getAllSpeakerDescriptions, resetSpeakerDescriptions } from '../../utils/dbUtils'
 import { ElButton, ElMessage, ElMessageBox } from 'element-plus';
 import GptSovits from '../../components/GptSovits.vue';
 import DockerLog from '../../components/DockerLog.vue';
@@ -183,7 +188,7 @@ let totalVideoDuration = computed(() => {
 });//视频总时长
 let channelUrls = ref<string[]>([]); // 博主主页链接列表
 let selectedChannel = ref(''); // 当前选中的博主主页链接
-const audios = ref<HTMLAudioElement>(); // 所有音频
+let audiosSrc = ref(''); // 所有音频路径
 let videoOrientation = ref('portrait'); // 默认竖屏
 let currentStep = ref(0);  // 当前步骤的索引
 let bgmList = ref<string[]>([]); // BGM列表
@@ -198,6 +203,7 @@ const pageSize = ref(6);
 let currentPageData = computed(() => novels.value.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value)); // 当前页的小说
 let speakerDescriptionsList = ref<{ speaker: string, description: string, modelName: string }[]>([]); // 说话人描述列表
 let isResetting = ref(false); // 是否正在重置
+let isEdgeTtsGenerating = ref(false); // 是否正在edgeTts生成
 
 
 //载入时触发
@@ -212,7 +218,7 @@ onMounted(async () => {
         return new Video(video.id, video.url, video.duration, thumbnails);
     });
     channelUrls.value = await getAllChannelUrls();
-    audios.value!.src = convertFileSrc(OUTPUT_PATH.value + '\\audios.wav');
+    audiosSrc.value = OUTPUT_PATH.value + '\\audios.wav';
 });
 
 const addSpeakerDescription = () => {
@@ -227,12 +233,6 @@ const formatNovel = () => {
         .replace(/[:：,，。](?![^【】]*】)/g, '\n')
         .replace(/】/g, '】\n')
         .replace(/\n\s*\n/g, '\n'); // 替换连续的换行符为一个换行符
-
-    novelContents.value = novelContents.value
-        .split('\n')
-        .filter(line => line.trim() !== '')
-        .map((line, index) => `${index + 1}. ${line}`)
-        .join('\n');
 };
 
 const clearAllAudio = async () => {
@@ -334,9 +334,13 @@ const formatNovelToJson = async () => {
         novels: z.array(novel),
     });
 
-    let chatApiKey = await getSetting('chatApiKey') ?? ""
-    let chatApiUrl = await getSetting('chatApiUrl') ?? ""
-    let chatModel = await getSetting('chatModel') ?? ""
+    let chatApiUrl = localStorage.getItem('chatApiUrl');
+    if (!chatApiUrl) {
+        ElMessage.warning('未设置caht API URL');
+        return;
+    }
+    let chatApiKey = localStorage.getItem('chatApiKey') ?? ""
+    let chatModel = localStorage.getItem('chatModel') ?? ""
 
     const messages = [
         {
@@ -484,8 +488,7 @@ const synthesizeAllAudio = async () => {
         ];
         await invoke('run_ffmpeg_cmd', { cmd: audioSynthesiscmd });
 
-        audios.value!.src = convertFileSrc(OUTPUT_PATH.value + '\\audios.wav');
-        audios.value!.load();
+        audiosSrc.value = OUTPUT_PATH.value + '\\audios.wav';
     } catch (error) {
         ElMessage.error(`音频合成失败: ${error as string}`);
     }
@@ -515,27 +518,18 @@ const getVideoList = async () => {
 
 }
 const generateVideo = async () => {
-    if (novels.value.some(novel => !novel.audioSrc)) {
-        ElMessage.warning('部分音频未生成，请先生成音频');
-        return;
-    }
-    const audioDuration = await getAudioDuration(convertFileSrc(OUTPUT_PATH.value + '\\audios.wav'));
-    if (audioDuration > totalVideoDuration.value) {
-        ElMessage.warning('视频时长不能小于音频时长');
-        return;
-    }
 
     try {
+        const audioDuration = await getAudioDuration(convertFileSrc(OUTPUT_PATH.value + '\\audios.wav'));
+        if (audioDuration > totalVideoDuration.value) {
+            ElMessage.warning('视频时长不能小于音频时长');
+            return;
+        }
+
         currentStep.value = 0;
         // 生成字幕所需的txt文件
         let novelsTextFilePath = `${OUTPUT_PATH.value}\\text.txt`;
-        let novelsText = novels.value.map(novel => {
-            return novel.content
-                .replace(/，|。/g, '')
-                .split('')
-                .join(' ');
-        }).join('\n');
-        await invoke('write_string_to_file', { text: novelsText, filePath: novelsTextFilePath });
+        await invoke('write_string_to_file', { text: novelContents.value, filePath: novelsTextFilePath });
 
         // 字幕生成
         let audioPath = "/workspace/novel_output/audios.wav";
@@ -615,6 +609,27 @@ const generateVideo = async () => {
     }
 };
 
+const edgeTtsGenerateAudio = async (novel: Novel) => {
+    novel.loading = true;
+    const speaker = localStorage.getItem('edgeTtsSpeaker');
+    if (!speaker) {
+        ElMessage.error('未设置edge说话人');
+        return;
+    }
+    const rate = parseInt(localStorage.getItem('edgeTtsRate') ?? "0")
+    const audioPath = `${OUTPUT_PATH.value}\\audio_${Date.now()}.wav`
+    const text = novel.content
+    await invoke('edge_tts', { audioPath, speaker, rate, text })
+        .then(() => {
+            novel.audioSrc = audioPath;
+        })
+        .catch(error => {
+            ElMessage.error(`生成音频失败: ${error as string}`);
+        })
+        .finally(() => {
+            novel.loading = false;
+        });
+}
 const generateAudio = async (novel: Novel) => {
     novel.loading = true;
     try {
@@ -677,16 +692,6 @@ const generateAudio = async (novel: Novel) => {
     }
 }
 
-// 生成音频
-// const generateAudioByIndex = async (novelIndex: number) => {
-//     let novel = currentPageData.value[novelIndex];
-//     novel.loading = true;
-//     console.log(novel.content)
-//     console.log(novel.loading)
-
-// }
-
-
 //一键生成所有音频
 const generateAllAudio = async () => {
     for (const novel of novels.value) {
@@ -702,6 +707,31 @@ const generateAllAudio = async () => {
     }
     await synthesizeAllAudio();
 };
+
+const edgeTtsGenerateAllAudio = async () => {
+    isEdgeTtsGenerating.value = true;
+    const speaker = localStorage.getItem('edgeTtsSpeaker');
+    if (!speaker) {
+        ElMessage.error('未设置edge说话人');
+        isEdgeTtsGenerating.value = false;
+        return;
+    }
+    const rate = parseInt(localStorage.getItem('edgeTtsRate') ?? "0")
+    const audioPath = `${OUTPUT_PATH.value}\\audios.wav`
+    const text = novelContents.value
+    await invoke('edge_tts', { audioPath, speaker, rate, text })
+        .then(() => {
+            ElMessage.success('生成音频成功');
+            audiosSrc.value = OUTPUT_PATH.value + '\\audios.wav';
+        })
+        .catch(error => {
+            ElMessage.error(`生成音频失败: ${error as string}`);
+        })
+        .finally(() => {
+            isEdgeTtsGenerating.value = false;
+        });
+}
+
 // 删除小说
 const delNovel = (novelIndex: number) => {
     const globalIndex = (currentPage.value - 1) * pageSize.value + novelIndex;

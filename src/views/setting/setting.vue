@@ -12,6 +12,9 @@
             <el-input v-model="ytDlpCmd" />
             <el-button @click="runYtDlpCmd">运行yt-dlp命令</el-button>
         </el-tab-pane>
+        <el-tab-pane label="edgeTTS" name="edgeTts">
+            <EdgeTts />
+        </el-tab-pane>
     </el-tabs>
 </template>
 
@@ -20,7 +23,7 @@ import { ref, onMounted } from 'vue';
 import ChatApi from '../../components/ChatApi.vue';
 import Chat from '../../components/Chat.vue';
 import ShowDatabase from '../../components/ShowDatabase.vue';
-
+import EdgeTts from './edgeTts.vue';
 const activeTab = ref('llmApi');
 
 const ytDlpCmd = ref('');
