@@ -1,19 +1,19 @@
 <template>
     <div>
-        <el-form :model="settingStore" label-width="120px">
+        <el-form label-width="120px">
             <el-form-item label="API Name">
-                <el-select v-model="settingStore.chatApiName" placeholder="选择一个API Name" @change="changeApiName">
+                <el-select v-model="currentChatApi.name" placeholder="选择一个API Name" @change="changeApiName">
                     <el-option v-for="api in apis" :key="api.id" :label="api.name" :value="api.name" />
                 </el-select>
             </el-form-item>
             <el-form-item label="API URL">
-                <el-input v-model="settingStore.chatApiUrl" placeholder="API URL" />
+                <el-input v-model="currentChatApi.url" placeholder="API URL" />
             </el-form-item>
             <el-form-item label="API Key">
-                <el-input v-model="settingStore.chatApiKey" placeholder="API Key" />
+                <el-input v-model="currentChatApi.apiKey" placeholder="API Key" />
             </el-form-item>
             <el-form-item label="选择模型">
-                <el-select v-model="settingStore.chatModel" placeholder="选择模型" @change="changeModel">
+                <el-select v-model="currentChatApi.model" placeholder="选择模型" @change="changeModel">
                     <el-option v-for="model in models" :key="model" :label="model" :value="model" />
                 </el-select>
             </el-form-item>
@@ -23,6 +23,8 @@
                 <el-button type="danger" @click="deleteApi">删除API</el-button>
             </el-form-item>
         </el-form>
+
+
 
         <el-dialog v-model="apiDialogVisible" :title="dialogTitle">
             <el-form :model="{ dialogApiName, dialogApiUrl, dialogApiKey }" label-width="120px">
@@ -49,7 +51,6 @@ import { onMounted, ref } from 'vue';
 import { fetch } from '@tauri-apps/plugin-http';
 import { ElMessage } from 'element-plus';
 import { getAllLLMApis, addLLMApi, updateLLMApi, deleteLLMApi } from '../utils/dbUtils';
-import { useSettingStore } from '../stores/useSettingStore';
 
 interface Api {
     id: number | null;
@@ -57,6 +58,13 @@ interface Api {
     url: string;
     api_key: string;
 }
+
+const currentChatApi = ref({
+    name: '',
+    url: '',
+    apiKey: '',
+    model: ''
+});
 
 const apis = ref<Api[]>([]);
 const models = ref<string[]>([]);
@@ -67,8 +75,6 @@ const dialogAction = ref('');
 const dialogApiName = ref('');
 const dialogApiUrl = ref('');
 const dialogApiKey = ref('');
-
-const settingStore = useSettingStore();
 
 const showAddApiDialog = () => {
     dialogTitle.value = '添加API';
@@ -82,9 +88,9 @@ const showAddApiDialog = () => {
 const showUpdateApiDialog = () => {
     dialogTitle.value = '修改API';
     dialogAction.value = '确定';
-    dialogApiName.value = settingStore.chatApiName;
-    dialogApiUrl.value = settingStore.chatApiUrl;
-    dialogApiKey.value = settingStore.chatApiKey;
+    dialogApiName.value = currentChatApi.value.name;
+    dialogApiUrl.value = currentChatApi.value.url;
+    dialogApiKey.value = currentChatApi.value.apiKey;
     apiDialogVisible.value = true;
 };
 
@@ -96,13 +102,16 @@ const handleApiAction = async () => {
     }
 };
 
-const changeApiName = () => {
-    const { name = '', url = '', api_key = '' } = apis.value.find(api => api.name === settingStore.chatApiName) || {};
-    settingStore.setChatApiName(name);
-    settingStore.setChatApiUrl(url);
-    settingStore.setChatApiKey(api_key);
-    settingStore.setChatModel("");
-    fetchModels();
+const changeApiName = async () => {
+    const { name = '', url = '', api_key = '' } = apis.value.find(api => api.name === currentChatApi.value.name) || {};
+    currentChatApi.value.url = url;
+    currentChatApi.value.apiKey = api_key;
+    currentChatApi.value.model = "";
+    localStorage.setItem('chatApiName', name);
+    localStorage.setItem('chatApiUrl', url);
+    localStorage.setItem('chatApiKey', api_key);
+    localStorage.setItem('chatModel', "");
+    await fetchModels();
 };
 
 const addApi = async () => {
@@ -117,35 +126,41 @@ const addApi = async () => {
 };
 
 const updateApi = async () => {
-    const selected = apis.value.find(api => api.name === settingStore.chatApiName);
+    const selected = apis.value.find(api => api.name === currentChatApi.value.name);
     if (selected && dialogApiName.value && dialogApiUrl.value && dialogApiKey.value) {
         await updateLLMApi(selected.id!, dialogApiName.value, dialogApiUrl.value, dialogApiKey.value);
         apis.value = await getAllLLMApis();
-        settingStore.setChatApiName(dialogApiName.value);
-        settingStore.setChatApiUrl(dialogApiUrl.value);
-        settingStore.setChatApiKey(dialogApiKey.value);
+        localStorage.setItem('chatApiName', dialogApiName.value);
+        localStorage.setItem('chatApiUrl', dialogApiUrl.value);
+        localStorage.setItem('chatApiKey', dialogApiKey.value);
+        currentChatApi.value.name = dialogApiName.value;
+        currentChatApi.value.url = dialogApiUrl.value;
+        currentChatApi.value.apiKey = dialogApiKey.value;
         ElMessage.success('API 修改成功');
         apiDialogVisible.value = false;
     }
 };
 
 const deleteApi = async () => {
-    const selected = apis.value.find(api => api.name === settingStore.chatApiName);
+    const selected = apis.value.find(api => api.name === currentChatApi.value.name);
     if (selected) {
         await deleteLLMApi(selected.id!);
         apis.value = await getAllLLMApis();
-        settingStore.setChatApiName('');
-        settingStore.setChatApiUrl('');
-        settingStore.setChatApiKey('');
+        localStorage.setItem('chatApiName', '');
+        localStorage.setItem('chatApiUrl', '');
+        localStorage.setItem('chatApiKey', '');
+        currentChatApi.value.name = '';
+        currentChatApi.value.url = '';
+        currentChatApi.value.apiKey = '';
         ElMessage.success('API 删除成功');
     }
 };
 
-const fetchModels = () => {
-    fetch(settingStore.chatApiUrl + '/v1/models', {
+const fetchModels = async () => {
+    fetch(currentChatApi.value.url + '/v1/models', {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${settingStore.chatApiKey}`
+            'Authorization': `Bearer ${currentChatApi.value.apiKey}`
         }
     })
         .then(response => response.json())
@@ -158,13 +173,16 @@ const fetchModels = () => {
         });
 };
 
-const changeModel = () => {
-    settingStore.setChatModel(settingStore.chatModel);
+const changeModel = async () => {
+    localStorage.setItem('chatModel', currentChatApi.value.model);
 };
 
 onMounted(async () => {
     apis.value = await getAllLLMApis();
-    await settingStore.init();
-    fetchModels();
+    currentChatApi.value.name = localStorage.getItem('chatApiName') ?? '';
+    currentChatApi.value.url = localStorage.getItem('chatApiUrl') ?? '';
+    currentChatApi.value.apiKey = localStorage.getItem('chatApiKey') ?? '';
+    currentChatApi.value.model = localStorage.getItem('chatModel') ?? '';
+    await fetchModels();
 });
 </script>
