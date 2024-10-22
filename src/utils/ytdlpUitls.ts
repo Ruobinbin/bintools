@@ -58,18 +58,26 @@ class Video implements IVideo {
 
         const cmd = [
             this.url,
-            // '-f', 'bestvideo',
-            '-o', outputFilePath
+            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4', // 选择最佳的 mp4 格式
+            '-o', outputFilePath,
+            '--merge-output-format', 'mp4' // 确保合并后的格式为 mp4
         ];
 
-        try {
-            await invoke<string>('run_yt_dlp_cmd', { cmd });
-            await insertVideo(this);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            this.isDownloading = false;
-        }
+        await invoke<string>('run_yt_dlp_cmd', { cmd })
+            .then(logs => {
+                if (logs.includes('100% of')) {
+                    console.log(logs);
+                    return insertVideo(this);
+                } else {
+                    throw new Error('下载失败');
+                }
+            })
+            .catch(error => {
+                console.error(error);
+            })
+            .finally(() => {
+                this.isDownloading = false;
+            });
     }
 }
 export { Video };

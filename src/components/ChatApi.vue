@@ -183,6 +183,5 @@ onMounted(async () => {
     currentChatApi.value.url = localStorage.getItem('chatApiUrl') ?? '';
     currentChatApi.value.apiKey = localStorage.getItem('chatApiKey') ?? '';
     currentChatApi.value.model = localStorage.getItem('chatModel') ?? '';
-    await fetchModels();
 });
 </script>

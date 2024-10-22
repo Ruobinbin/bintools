@@ -1,4 +1,5 @@
 use crate::utils;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use tauri::command;
@@ -86,16 +87,50 @@ pub async fn run_aeneas_cmd(
 //运行yt_dlp命令
 #[command]
 pub async fn run_yt_dlp_cmd(cmd: Vec<&str>) -> Result<String, String> {
-    match utils::bollard_utils::create_and_run_yt_dlp_container(cmd).await {
-        Ok(logs) => Ok(logs),
-        Err(e) => Err(e.to_string()),
-    }
+    utils::bollard_utils::create_and_run_yt_dlp_container(cmd).await
 }
 
 //检查文件是否存在
 #[command]
 pub fn check_file_exists(path: String) -> bool {
     Path::new(&path).exists()
+}
+
+//删除文件
+#[command]
+pub fn delete_file(path: String) -> Result<(), String> {
+    let path = Path::new(&path);
+    if path.exists() {
+        match fs::remove_file(path) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
+    } else {
+        Err(format!("文件不存在: {:?}", path))
+    }
+}
+
+//删除指定目录下以prefix开头的文件
+#[command]
+pub fn delete_file_with_prefix(dir_path: String, prefix: &str) -> Result<(), String> {
+    let dir_path = Path::new(&dir_path);
+    if !dir_path.exists() {
+        return Err(format!("目录不存在: {:?}", dir_path));
+    }
+
+    let files = fs::read_dir(dir_path).map_err(|e| e.to_string())?;
+    for entry in files.flatten() {
+        let path = entry.path();
+        if path.is_file()
+            && path.file_name().map_or(false, |name| {
+                name.to_str().map_or(false, |s| s.starts_with(prefix))
+            })
+        {
+            fs::remove_file(path).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
 }
 
 //创建文件夹并获取文件夹下的文件列表

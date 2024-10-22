@@ -129,6 +129,14 @@ pub fn get_files_with_extension(dir_path: &Path, extension: &str) -> Vec<PathBuf
         .collect()
 }
 
+/// 获取指定前缀的文件
+pub fn get_files_with_prefix(dir_path: &Path, prefix: &str) -> Vec<PathBuf> {
+    get_all_in_dir(dir_path)
+        .into_iter()
+        .filter(|path| path.is_file() && path.file_name().map_or(false, |name| name.to_str().map_or(false, |s| s.starts_with(prefix))))
+        .collect()
+}
+
 // 写入字符串内容到文件
 pub fn write_string_to_file(text: &str, file_path: PathBuf) -> Result<(), std::io::Error> {
     let mut file = File::create(file_path)?;
