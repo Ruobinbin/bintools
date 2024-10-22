@@ -10,9 +10,6 @@
         <el-tab-pane label="gpt-sovits">
             <GptSovits />
         </el-tab-pane>
-        <el-tab-pane label="divNovel">
-            <diyNovel />
-        </el-tab-pane>
         <el-tab-pane label="视频">
             <VideoList @updateVideoList="handleVideoListUpdate" @updateTotalDuration="handleTotalDurationUpdate" />
         </el-tab-pane>
@@ -81,7 +78,6 @@ import DockerLog from '../../components/DockerLog.vue';
 import VideoList from './video.vue';
 import { onMounted, ref, watch } from 'vue';
 import { generateCompleteAudioData } from '../../utils/azureTtsUtils';
-import diyNovel from './divNovel.vue';
 
 const OUTPUT_PATH = ref('');//输出路径
 let novelContents = ref('') //小说内容

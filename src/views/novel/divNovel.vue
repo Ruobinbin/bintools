@@ -1,4 +1,4 @@
-<template>
+<!-- <template>
     <el-button @click="formatNovelToJson" :loading="isFormatting">chat格式化小说</el-button>
     <el-button @click="formatNovel" :loading="isFormatting">格式化小说</el-button>
     <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
@@ -489,4 +489,4 @@ const insertNovel = (novelIndex: number) => {
 
 </script>
 
-<style></style>
+<style></style> -->

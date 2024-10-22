@@ -21,7 +21,6 @@
 </template>
 
 <script setup>
-import OpenAI from 'openai';
 import { Delete } from '@element-plus/icons-vue';
 import { ref, onMounted } from 'vue';
 
