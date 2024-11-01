@@ -2,27 +2,24 @@
     <el-tabs tab-position="left">
         <el-tab-pane label="小说">
             <el-text class="mx-1" type="info">长度:{{ novelContents.length }}</el-text>
+            <div style="display: flex; align-items: center;">
+                <el-input v-model="novelUrl" placeholder="小说链接" />
+                <el-button @click="getZhihuNovel">打开知乎小说</el-button>
+            </div>
             <el-button @click="edgeTtsGenerateAllAudio" :loading="isEdgeTtsGenerating">edgeTts生成音频</el-button>
             <el-button @click="azureTtsGenerateAllAudio" :loading="isAzureTtsGenerating">Azure TTS生成音频</el-button>
             <audio :src="`${convertFileSrc(audiosSrc)}?t=${new Date().getTime()}`" controls></audio>
             <el-input v-model="novelContents" style="width: 100%;" autosize type="textarea" placeholder="小说内容" />
         </el-tab-pane>
-        <el-tab-pane label="gpt-sovits">
-            <GptSovits />
-        </el-tab-pane>
         <el-tab-pane label="视频">
-            <VideoList @updateVideoList="handleVideoListUpdate" @updateTotalDuration="handleTotalDurationUpdate" />
+            <VideoList @updateVideoList="handleVideoListUpdate"
+                @updateCurrentVideoList="handleCurrentVideoListUpdate" />
         </el-tab-pane>
         <el-tab-pane label=" 最后合成">
             <div>
                 <el-progress type="circle" :percentage="aeneasPercentage">
                     <template #default="{ percentage }">
                         生成字幕{{ percentage }}%
-                    </template>
-                </el-progress>
-                <el-progress type="circle" :percentage="downloadVideoPercentage">
-                    <template #default="{ percentage }">
-                        下载视频{{ percentage }}%
                     </template>
                 </el-progress>
                 <el-progress type="circle" :percentage="formatVideoPercentage">
@@ -60,6 +57,26 @@
                 <el-slider v-if="selectedBgm" v-model="bgmVolume" :min="0" :max="1" :step="0.01" show-stops
                     inline></el-slider>
             </div>
+            <el-divider>上传</el-divider>
+            <div>
+                <div class="tags">
+                    <el-tag v-for="(tag, index) in tags" :key="index" closable @close="removeTag(index)"
+                        style="margin-right: 5px;">
+                        {{ tag }}
+                    </el-tag>
+                </div>
+                <el-input v-model="tagInput" placeholder="输入标签并按回车" @keyup.enter="addTag"
+                    @keydown.backspace="removeLastTag">
+                </el-input>
+            </div>
+            <video width="10%" :src="`${convertFileSrc(videoPath)}?t=${new Date().getTime()}`" controls />
+            <el-button @click="selectFile">选择文件</el-button>
+            <el-input v-model="videoPath" placeholder="视频路径" readonly></el-input>
+            <el-button @click="upload('bilibili')" :loading="isBilibiliUpload">bilibili上传</el-button>
+            <el-button @click="upload('douyin')" :loading="isDyUpload">抖音上传</el-button>
+            <el-button @click="upload('ks')" :loading="isKsUpload">快手上传</el-button>
+            <el-button @click="upload('wx')" :loading="isWxUpload">微信上传</el-button>
+            <el-button @click="upload('bd')" :loading="isBdUpload">百度上传</el-button>
         </el-tab-pane>
         <el-tab-pane label=" docker日志">
             <DockerLog />
@@ -68,12 +85,12 @@
 </template>
 <script lang="ts" setup>
 import { open } from '@tauri-apps/plugin-shell';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { resourceDir } from '@tauri-apps/api/path';
 import { getAudioDuration, getFileNameFromPath } from '../../utils/defaultUtils'
 import { Video } from '../../utils/ytdlpUitls'
 import { ElButton, ElMessage } from 'element-plus';
-import GptSovits from '../../components/GptSovits.vue';
 import DockerLog from '../../components/DockerLog.vue';
 import VideoList from './video.vue';
 import { onMounted, ref, watch } from 'vue';
@@ -82,7 +99,7 @@ import { generateCompleteAudioData } from '../../utils/azureTtsUtils';
 const OUTPUT_PATH = ref('');//输出路径
 let novelContents = ref('') //小说内容
 let videoList = ref<Video[]>([]);//视频列表
-let totalVideoDuration = ref<number>(0);//视频总时长
+let currentVideoList = ref<Video[]>([]);//当前视频列表
 let audiosSrc = ref(''); // 所有音频路径
 let videoOrientation = ref('portrait'); // 默认竖屏
 let bgmList = ref<string[]>([]); // BGM列表
@@ -95,12 +112,18 @@ let isIncludeVideoAudio = ref(false); // 是否包含视频音频
 let videoAudioVolume = ref(0.1); // 视频音频音量
 let novelName = ref(''); // 小说名
 let novelIntro = ref(''); // 小说介绍
-
 let aeneasPercentage = ref(0)
-let downloadVideoPercentage = ref(0); // 下载视频进度
 let formatVideoPercentage = ref(0); // 统一格式进度
 let synthesizeVideoPercentage = ref(0); // 合成视频进度
-
+let videoPath = ref("");
+let isBilibiliUpload = ref(false);
+let isDyUpload = ref(false);
+let isKsUpload = ref(false);
+let isWxUpload = ref(false);
+let isBdUpload = ref(false);
+let tagInput = ref('');
+let tags = ref<string[]>([]);
+let novelUrl = ref('');
 //载入时触发
 onMounted(async () => {
     OUTPUT_PATH.value = (await resourceDir()) + '\\user_files\\novel_output';
@@ -111,6 +134,8 @@ onMounted(async () => {
     novelContents.value = localStorage.getItem('novelContents') || '';
     novelName.value = localStorage.getItem('novelName') || '';
     novelIntro.value = localStorage.getItem('novelIntro') || '';
+    videoPath.value = localStorage.getItem("uploadVideoPath") || "";
+    tags.value = JSON.parse(localStorage.getItem('tags') || '[]');
 });
 
 watch(videoAudioVolume, (newVolume) => {
@@ -129,12 +154,96 @@ watch(novelIntro, (newIntro) => {
     localStorage.setItem('novelIntro', newIntro);
 });
 
+const getZhihuNovel = async () => {
+    if (!novelUrl.value) {
+        ElMessage.warning('请输入知乎小说链接');
+        return;
+    }
+
+    const url = new URL(novelUrl.value);
+    const mst = url.searchParams.get('mst');
+
+    if (mst) {
+        const newUrl = `https://story.zhihu.com/blogger/next-manuscript/paid_column/${mst}`;
+        open(newUrl);
+    }
+}
+
+const addTag = () => {
+    if (tagInput.value.trim() && !tags.value.includes(tagInput.value.trim())) {
+        tags.value.push(tagInput.value.trim());
+        localStorage.setItem('tags', JSON.stringify(tags.value));
+        tagInput.value = '';
+    }
+};
+
+const removeTag = (index: number) => {
+    tags.value.splice(index, 1);
+    localStorage.setItem('tags', JSON.stringify(tags.value));
+};
+
+const removeLastTag = (event: KeyboardEvent) => {
+    if (event.key === 'Backspace' && !tagInput.value && tags.value.length) {
+        tags.value.pop();
+        localStorage.setItem('tags', JSON.stringify(tags.value));
+    }
+};
+
 const handleVideoListUpdate = (newList: Video[]) => {
     videoList.value = newList;
 };
 
-const handleTotalDurationUpdate = (newDuration: number) => {
-    totalVideoDuration.value = newDuration;
+const handleCurrentVideoListUpdate = (newList: Video[]) => {
+    currentVideoList.value = newList;
+};
+
+const selectFile = async () => {
+    const file = await openDialog({
+        multiple: false,
+        directory: false,
+    });
+    if (file) {
+        videoPath.value = file;
+        localStorage.setItem("uploadVideoPath", file);
+    }
+};
+const upload = async (platform: string) => {
+
+    if (!videoPath.value) {
+        ElMessage.warning('请选择视频');
+        return;
+    }
+    if (tags.value.length === 0) {
+        ElMessage.warning('请输入标签');
+        return;
+    }
+    if (!novelName.value) {
+        ElMessage.warning('请输入小说名');
+        return;
+    }
+
+    if (platform === 'bilibili') {
+        isBilibiliUpload.value = true;
+    } else if (platform === 'douyin') {
+        isDyUpload.value = true;
+    } else if (platform === 'ks') {
+        isKsUpload.value = true;
+    } else if (platform === 'wx') {
+        isWxUpload.value = true;
+    } else if (platform === 'bd') {
+        isBdUpload.value = true;
+    } else if (platform === 'hy') {
+    }
+
+    await invoke("upload_video", { platform, path: videoPath.value, tags: tags.value, name: novelName.value }).then(() => {
+        ElMessage.success('上传成功');
+    }).finally(() => {
+        isBilibiliUpload.value = false;
+        isDyUpload.value = false;
+        isKsUpload.value = false;
+        isWxUpload.value = false;
+        isBdUpload.value = false;
+    });
 };
 
 const formatNovel = () => {
@@ -173,7 +282,6 @@ const fetchBgmList = async () => {
 
 const generateVideo = async () => {
     aeneasPercentage.value = 0;
-    downloadVideoPercentage.value = 0;
     formatVideoPercentage.value = 0;
     synthesizeVideoPercentage.value = 0;
 
@@ -184,16 +292,19 @@ const generateVideo = async () => {
             return;
         }
 
-        // 检查音频时长
         const audioDuration = await getAudioDuration(convertFileSrc(OUTPUT_PATH.value + '\\audios.wav'));
-        if (audioDuration > totalVideoDuration.value) {
-            ElMessage.warning('视频时长不能小于音频时长');
-            return;
+        const selected_videos = videoList.value.filter(video => video.selected);
+        let totalSelectedDuration = selected_videos.reduce((acc, video) => acc + video.duration, 0);
+        while (totalSelectedDuration < audioDuration) {
+            const randomIndex = Math.floor(Math.random() * currentVideoList.value.length);
+            const randomVideo = currentVideoList.value[randomIndex];
+            selected_videos.push(randomVideo);
+            totalSelectedDuration += randomVideo.duration;
         }
 
-        formatNovel();
 
         // 生成字幕所需的txt文件
+        formatNovel();
         let novelsTextFilePath = `${OUTPUT_PATH.value}\\text.txt`;
         let text = novelContents.value.split('').join(' ');
         await invoke('write_string_to_file', { text, filePath: novelsTextFilePath });
@@ -205,24 +316,7 @@ const generateVideo = async () => {
         await invoke('run_aeneas_cmd', { audioPath, textPath, outputPath });
         aeneasPercentage.value = 100
 
-        // 下载已选视频
-        const selected_videos = videoList.value.filter(video => video.selected);
-        let downloadedCount = 0;
-        for (const video of selected_videos) {
-            const filePath = `${OUTPUT_PATH.value}\\video\\${video.id}.mp4`;
-            const fileExists = await invoke<boolean>('check_file_exists', { path: filePath });
-            if (fileExists) {
-                downloadedCount++;
-                downloadVideoPercentage.value = (downloadedCount / selected_videos.length) * 100;
-                continue;
-            }
-            await video.downloadVideo('/workspace/novel_output/video')
-                .then(() => {
-                    downloadedCount++;
-                    ElMessage.success(`下载成功 视频id：${video.id}`);
-                    downloadVideoPercentage.value = (downloadedCount / selected_videos.length) * 100;
-                })
-        }
+
 
         let processedCount = 0;
         //统一视频大小
@@ -279,8 +373,8 @@ const generateVideo = async () => {
             ...(selectedBgm.value ? ["-stream_loop", "-1", "-i", `/workspace/novel_output/bgm/${getFileNameFromPath(selectedBgm.value)}`] : []),
             "-filter_complex", `
                 [0:v]subtitles=/workspace/novel_output/audios.srt:force_style='FontName=ZCOOL KuaiLe,FontSize=8,Spacing=-2,PrimaryColour=&H00FFFF&,WrapStyle=0,MarginV=200,Width=10'[v];
-                ${novelName.value ? `[v]drawtext=text='${novelName.value}:'x='if(lt(t,2), lerp((w-text_w)/2, 50, t/2), 50)':y='if(lt(t,2), lerp((h-text_h)/2, 50, t/2), 50)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize='if(lt(t,2), lerp(300, 100, t/2), 100)':shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
-                ${novelIntro.value ? `[v]drawtext=text='${novelIntro.value}:'x='(w-text_w)/2':y='if(lt(t,2), lerp((h-text_h)/2+150+text_h/2, h, t/2), h)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize=150:shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
+                ${novelName.value ? `[v]drawtext=text='${novelName.value}:'x='if(lt(t,2), lerp((w-text_w)/2, 50, t/2), 50)':y='if(lt(t,2), lerp((h-text_h)/2-150, 50, t/2), 50)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize='if(lt(t,2), lerp(300, 100, t/2), 100)':shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
+                ${novelIntro.value ? `[v]drawtext=text='${novelIntro.value}:'x='(w-text_w)/2':y='if(lt(t,2), lerp((h-text_h)/2+150+text_h/2-150, h, t/2), h)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize=150:shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
                 ${filterComplex}
             `,
             "-map", "[v]",
@@ -296,6 +390,7 @@ const generateVideo = async () => {
 
         await invoke('run_ffmpeg_cmd', { cmd });
         synthesizeVideoPercentage.value = 100
+        videoPath.value = OUTPUT_PATH.value + '\\final_video.mp4';
 
     } catch (error) {
         ElMessage.error(`操作失败: ${error as string}`);

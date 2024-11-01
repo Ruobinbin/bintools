@@ -148,3 +148,14 @@ pub fn write_string_to_file(text: &str, file_path: PathBuf) -> Result<(), std::i
     file.write_all(text.as_bytes())?;
     Ok(())
 }
+
+//判断一个进程是否存在
+pub fn is_process_running(process_name: &str) -> bool {
+    let tasklist_output = Command::new("tasklist").output().unwrap();
+    let tasklist_str = String::from_utf8_lossy(&tasklist_output.stdout);
+    if tasklist_str.contains(process_name) {
+        return true;
+    } else {
+        return false;
+    }
+}

@@ -34,6 +34,7 @@ futures = "*"
 tokio = "*"
 msedge-tts = "*"
 fantoccini = "*"
+reqwest = "*"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"] # or "postgres", or "mysql"

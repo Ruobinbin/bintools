@@ -1,7 +1,7 @@
-use bintools_lib::utils;
+use bintools_lib::utils::fantoccini_utils::upload_bilibili;
 use tokio;
 
 #[tokio::test]
 async fn test() {
-    let _ = utils::fantoccini_utils::execute_browser_operations().await;
+    // upload_bilibili("C:\\Users\\Administrator\\Desktop\\test.txt").await.unwrap();
 }

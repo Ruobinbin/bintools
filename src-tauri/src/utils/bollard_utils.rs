@@ -29,10 +29,6 @@ pub async fn create_and_run_yt_dlp_container(cmd: Vec<&str>) -> Result<String, S
         pull_image(YT_DLP_IMAGE, "gpt_sovits_api_log").await?;
     }
 
-    if let Ok(_) = get_container_by_name("yt-dlp").await {
-        remove_container("yt-dlp").await?;
-    }
-
     let mount_path = user_files_dir().to_string_lossy().to_string() + ":/workspace";
 
     let config = Config::<&str> {
@@ -44,30 +40,46 @@ pub async fn create_and_run_yt_dlp_container(cmd: Vec<&str>) -> Result<String, S
         ]),
         host_config: Some(bollard::service::HostConfig {
             binds: Some(vec![mount_path]),
+            auto_remove: Some(true),
             ..Default::default()
         }),
         ..Default::default()
     };
 
-    let options = Some(CreateContainerOptions::<&str> {
-        name: "yt-dlp",
-        platform: None,
-    });
-
-    docker
+    let options = None::<CreateContainerOptions<&str>>;
+    let container_id = docker
         .create_container(options, config)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?
+        .id; // 获取容器 ID
 
     docker
-        .start_container("yt-dlp", None::<StartContainerOptions<&str>>)
+        .start_container(&container_id, None::<StartContainerOptions<&str>>)
         .await
         .map_err(|e| e.to_string())?;
 
-    emit_container_logs("yt-dlp", "gpt_sovits_api_log").await?;
-    let logs = get_container_logs("yt-dlp").await?;
+    let mut log_stream = docker.logs(
+        &container_id,
+        Some(LogsOptions::<String> {
+            stdout: true,
+            stderr: true,
+            follow: true,
+            ..Default::default()
+        }),
+    );
 
-    Ok(logs)
+    let mut collected_logs = String::new();
+    while let Some(log_result) = log_stream.next().await {
+        match log_result {
+            Ok(log_output) => {
+                collected_logs.push_str(&format!("{}", log_output));
+            }
+            Err(e) => {
+                return Err(e.to_string());
+            }
+        }
+    }
+    Ok(collected_logs)
 }
 
 /// 创建并启动一个 aeneas 容器，执行指定的命令

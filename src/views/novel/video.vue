@@ -1,47 +1,44 @@
 <template>
     <el-text>所选视频时长: {{ totalVideoDuration }}</el-text>
+    <div style="display: flex; align-items: center;">
+        <el-select v-model="selectedChannel" placeholder="选择博主主页链接" style="flex-grow: 1; margin-right: 10px;">
+            <el-option v-for="channel in channelUrls" :key="channel" :label="channel" :value="channel">
+                {{ channel }}
+            </el-option>
+        </el-select>
+        <el-button type="default" @click="open(selectedChannel)">打开</el-button>
+        <el-input v-model="fetchVideoContent" placeholder="获取数量" style="max-width: 60px;" />
+        <el-button :loading="isGetting" type="success" @click="getVideoList">获取</el-button>
+        <el-button type="primary" @click="addNewChannelUrl">添加</el-button>
+        <el-button type="danger" @click="deleteCurrentChannelUrl">删除</el-button>
+    </div>
     <div>
-        <el-collapse v-model="activeCollapse" accordion style="background-color: black;">
+        <el-collapse v-model="activeCollapse" style="background-color: black;">
             <el-collapse-item title="本地视频" name="1">
                 <div style="display: flex;flex-wrap: wrap;gap: 10px;">
                     <div :style="{ background: video.selected ? 'yellow' : 'lightgrey', flex: '0 1 auto', width: '200px', borderRadius: '10px' }"
-                        v-for="video in videoList" :key="video.id">
-                        <img :src="video.getLargestThumbnailUrl()" :alt="video.url" @click="toggleVideoSelection(video)"
+                        v-for="video in currentVideoList" :key="video.id">
+                        <img :src="video.thumbnail" :alt="video.url" @click="toggleVideoSelection(video)"
                             style="width: 100%; height: auto; border-radius: 10px;" />
                         <p><el-link type="primary" @click.prevent="open(video.url)">点击此处观看</el-link></p>
                         <p><el-text>ID: {{ video.id }}</el-text></p>
                         <p><el-text>时长: {{ video.duration }} 秒</el-text></p>
                         <el-button @click="delVideo(video.id)">删除</el-button>
-                        <el-button @click="video.downloadVideo('/workspace/novel_output/video')"
-                            :loading="video.isDownloading">下载</el-button>
+                        <el-button @click="downloadVideo(video)" :loading="video.isDownloading">下载</el-button>
                     </div>
                 </div>
             </el-collapse-item>
             <el-collapse-item title="网络视频" name="2">
-                <div style="display: flex; align-items: center;">
-                    <el-select v-model="selectedChannel" placeholder="选择博主主页链接"
-                        style="flex-grow: 1; margin-right: 10px;">
-                        <el-option v-for="channel in channelUrls" :key="channel" :label="channel" :value="channel">
-                            {{ channel }}
-                        </el-option>
-                    </el-select>
-                    <el-button type="default" @click="open(selectedChannel)">打开</el-button>
-                    <el-button :loading="isGetting" type="success" @click="getVideoList">获取</el-button>
-                    <el-button type="primary" @click="addNewChannelUrl">添加</el-button>
-                    <el-button type="danger" @click="deleteCurrentChannelUrl">删除</el-button>
-                    <el-input v-model="fetchVideoContent" placeholder="获取数量" style="margin-top: 10px;" />
-                </div>
                 <div style="display: flex;flex-wrap: wrap;gap: 10px;">
                     <div :style="{ background: video.selected ? 'yellow' : 'lightgrey', flex: '0 1 auto', width: '200px', borderRadius: '10px' }"
                         v-for="video in newVideoList" :key="video.id">
-                        <img :src="video.getLargestThumbnailUrl()" :alt="video.url" @click="addTOVideoList(video)"
+                        <img :src="video.thumbnail" :alt="video.url" @click="addTOVideoList(video)"
                             style="width: 100%; height: auto; border-radius: 10px;" />
                         <p><el-link type="primary" @click.prevent="open(video.url)">点击此处观看</el-link></p>
                         <p><el-text>ID: {{ video.id }}</el-text></p>
                         <p><el-text>时长: {{ video.duration }} 秒</el-text></p>
                         <el-button @click="delVideo(video.id)">删除</el-button>
-                        <el-button @click="video.downloadVideo('/workspace/novel_output/video')"
-                            :loading="video.isDownloading">下载</el-button>
+                        <el-button @click="downloadVideo(video)" :loading="video.isDownloading">下载</el-button>
                     </div>
                 </div>
             </el-collapse-item>
@@ -52,10 +49,11 @@
     </div>
 </template>
 <script lang="ts" setup>
+// ''
 import { open } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
 import { IThumbnail, Video } from '../../utils/ytdlpUitls'
-import { getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl, deleteVideoById } from '../../utils/dbUtils'
+import { getAllVideos, getAllChannelUrls, addChannelUrl, deleteChannelUrlByUrl, deleteVideoById, insertVideo } from '../../utils/dbUtils'
 import { ElButton, ElMessage, ElMessageBox } from 'element-plus';
 import { computed, onMounted, ref, watch } from 'vue';
 import { resourceDir } from '@tauri-apps/api/path';
@@ -73,31 +71,70 @@ let isGetting = ref(false); // 是否正在获取
 const VIDEO_PATH = ref('');//输出路径
 let activeCollapse = ref('1'); // 默认展开第一个
 let fetchVideoContent = ref(50)
+let currentVideoList = computed(() => videoList.value.filter(video => video.channelUrl === selectedChannel.value));//当前视频列表
 
-
-
-const emit = defineEmits(['updateVideoList', 'updateTotalDuration'])
+const emit = defineEmits(['updateVideoList', 'updateCurrentVideoList'])
 
 // 监听 videoList 的变化
 watch(videoList, (newList) => {
     emit('updateVideoList', newList);
 });
 
-// 监听 totalVideoDuration 的变化
-watch(totalVideoDuration, (newDuration) => {
-    emit('updateTotalDuration', newDuration);
+watch(currentVideoList, (newList) => {
+    emit('updateCurrentVideoList', newList);
+});
+
+// 监听 selectedChannel 的变化
+watch(selectedChannel, (newChannel) => {
+    localStorage.setItem('channelUrl', newChannel);
 });
 
 
 //载入时触发
 onMounted(async () => {
+    selectedChannel.value = localStorage.getItem('channelUrl') || '';
     VIDEO_PATH.value = (await resourceDir()) + '\\user_files\\novel_output\\video';
     videoList.value = (await getAllVideos()).map(video => {
-        let thumbnails: IThumbnail[] = video.thumbnails;
-        return new Video(video.id, video.url, video.duration, thumbnails);
+        return new Video(video.id, video.url, video.channelUrl, video.duration, video.thumbnail);
     });
+    console.log(videoList.value);
     channelUrls.value = await getAllChannelUrls();
 });
+
+const downloadVideo = async (video: Video): Promise<void> => {
+    if (videoList.value.some(v => v.id === video.id)) {
+        ElMessage.error("本地已存在此视频")
+        return;
+    }
+
+    video.isDownloading = true;
+    const outputFilePath = `/workspace/novel_output/video/${video.id}.mp4`;
+
+    const cmd = [
+        video.url,
+        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4',
+        '-o', outputFilePath,
+        '--merge-output-format', 'mp4'
+    ];
+
+    await invoke<string>('run_yt_dlp_cmd', { cmd })
+        .then(logs => {
+            if (logs.includes('100% of')) {
+                insertVideo(video);
+                videoList.value.push(video);
+                return;
+            } else {
+                throw new Error('下载失败');
+            }
+        })
+        .catch(error => {
+            throw new Error(`下载视频失败: ${error}`);
+        })
+        .finally(() => {
+            video.isDownloading = false;
+        });
+}
+
 const addTOVideoList = (video: Video) => {
     if (videoList.value.some(v => v.id === video.id)) {
         ElMessage.error("本地已存在此视频")
@@ -148,6 +185,13 @@ const delVideo = async (id: string) => {
 // 删除当前选中的博主URL
 const deleteCurrentChannelUrl = async () => {
     if (selectedChannel.value) {
+
+        let videos = videoList.value.filter(video => video.channelUrl === selectedChannel.value);
+        newVideoList.value = [];
+        for (const video of videos) {
+            await delVideo(video.id);
+        }
+
         await deleteChannelUrlByUrl(selectedChannel.value);
         channelUrls.value = channelUrls.value.filter(channel => channel !== selectedChannel.value);
         selectedChannel.value = '';
@@ -175,7 +219,23 @@ const getVideoList = async () => {
             try {
                 let video = JSON.parse(videoStr);
                 let thumbnails: IThumbnail[] = video.thumbnails;
-                newVideoList.value.push(new Video(video.id, video.url, video.duration, thumbnails));
+                let thumbnail = '';
+
+                if (thumbnails.length === 0) {
+                    thumbnail = 'https://via.placeholder.com/600x400.png?text=No+Image';
+                } else {
+                    let largestThumbnail = thumbnails.reduce((largest, current) => {
+                        const largestArea = largest.height * largest.width;
+                        const currentArea = current.height * current.width;
+                        return currentArea > largestArea ? current : largest;
+                    });
+                    thumbnail = largestThumbnail.url;
+                }
+
+                const num = typeof video.duration === 'number' ? video.duration : Number(video.duration);
+                const duration = !isNaN(num) ? num : -1;
+
+                newVideoList.value.push(new Video(video.id, video.url, selectedChannel.value, duration, thumbnail));
             } catch (error) {
                 // 如果解析失败，不会push到videoList.value中
             }

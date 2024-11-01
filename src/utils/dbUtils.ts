@@ -1,6 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
 import { INovel } from './novelUtils';
-import { IThumbnail, IVideo } from './ytdlpUitls';
+import { IVideo } from './ytdlpUitls';
 
 // 缓存数据库实例
 let db = await Database.load('sqlite:bintool.db');
@@ -54,8 +54,9 @@ export const dbInit = async (): Promise<void> => {
         CREATE TABLE IF NOT EXISTS videos (
             id TEXT PRIMARY KEY,
             url TEXT,
+            channelUrl TEXT,
             duration INTEGER,
-            thumbnails TEXT
+            thumbnail TEXT
         )
     `);
 
@@ -112,34 +113,23 @@ export const getAllNovels = async (): Promise<INovel[]> => {
 // 插入视频
 export const insertVideo = async (video: IVideo): Promise<void> => {
     await db.execute(
-        `INSERT INTO videos (id, url, duration, thumbnails) VALUES (?, ?, ?, ?)`,
-        [video.id, video.url, video.duration, JSON.stringify(video.thumbnails)]
+        `INSERT INTO videos (id, url, channelUrl, duration, thumbnail) VALUES (?, ?, ?, ?, ?)`,
+        [video.id, video.url, video.channelUrl, video.duration, video.thumbnail]
     );
 };
 
 // 获取所有视频数据
 export const getAllVideos = async (): Promise<IVideo[]> => {
-    const result = await db.select('SELECT * FROM videos') as Array<{
-        id: string;
-        url: string;
-        duration: number;
-        thumbnails: string;
-    }>;
-
-    return result.map(row => ({
-        id: row.id,
-        url: row.url,
-        duration: row.duration,
-        thumbnails: JSON.parse(row.thumbnails) as IThumbnail[],
-        selected: false,
-        isDownloading: false,
-    }));
+    const result = await db.select('SELECT * FROM videos') as IVideo[];
+    return result;
 };
 
 // 根据id删除视频
 export const deleteVideoById = async (id: string): Promise<void> => {
     await db.execute('DELETE FROM videos WHERE id = ?', [id]);
 };
+
+//====================博主URL====================
 
 // 获取所有博主的URL
 export const getAllChannelUrls = async (): Promise<string[]> => {

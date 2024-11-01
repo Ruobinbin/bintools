@@ -7,7 +7,8 @@ use std::path::PathBuf;
 use tauri::{
     // menu::{MenuBuilder, MenuItemBuilder},
     // tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle,
+    Manager,
 };
 
 pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new(); //APP句柄
@@ -110,6 +111,7 @@ pub fn run() {
             tauri_cmd::edge_tts_get_voices,
             tauri_cmd::delete_file,
             tauri_cmd::delete_file_with_prefix,
+            tauri_cmd::upload_video,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
