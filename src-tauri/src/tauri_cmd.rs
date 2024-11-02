@@ -198,6 +198,7 @@ pub async fn upload_video(
         "ks" => utils::fantoccini_utils::upload_ks(&path, &tags, &name).await?,
         "wx" => utils::fantoccini_utils::upload_wx(&path, &tags, &name).await?,
         "bd" => utils::fantoccini_utils::upload_bd(&path, &tags, &name).await?,
+        "all" => utils::fantoccini_utils::upload_all(&path, &tags, &name).await?,
         _ => return Err("不支持的平台".to_string()),
     };
     Ok(())
