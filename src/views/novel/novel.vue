@@ -6,6 +6,7 @@
                 <el-input v-model="novelUrl" placeholder="小说链接" />
                 <el-button @click="getZhihuNovel">打开知乎小说</el-button>
             </div>
+            <el-button @click="removeNumberedLines">去除编号</el-button>
             <el-button @click="edgeTtsGenerateAllAudio" :loading="isEdgeTtsGenerating">edgeTts生成音频</el-button>
             <el-button @click="azureTtsGenerateAllAudio" :loading="isAzureTtsGenerating">Azure TTS生成音频</el-button>
             <audio :src="`${convertFileSrc(audiosSrc)}?t=${new Date().getTime()}`" controls></audio>
@@ -77,6 +78,7 @@
             <el-button @click="upload('ks')" :loading="isKsUpload">快手上传</el-button>
             <el-button @click="upload('wx')" :loading="isWxUpload">微信上传</el-button>
             <el-button @click="upload('bd')" :loading="isBdUpload">百度上传</el-button>
+            <el-button @click="upload('all')" :loading="isAllUpload">一键上传</el-button>
         </el-tab-pane>
         <el-tab-pane label=" docker日志">
             <DockerLog />
@@ -121,6 +123,7 @@ let isDyUpload = ref(false);
 let isKsUpload = ref(false);
 let isWxUpload = ref(false);
 let isBdUpload = ref(false);
+let isAllUpload = ref(false);
 let tagInput = ref('');
 let tags = ref<string[]>([]);
 let novelUrl = ref('');
@@ -153,6 +156,11 @@ watch(novelName, (newName) => {
 watch(novelIntro, (newIntro) => {
     localStorage.setItem('novelIntro', newIntro);
 });
+
+function removeNumberedLines() {
+    novelContents.value = novelContents.value.replace(/^\d+\s*$/gm, '');
+    novelContents.value = novelContents.value.replace(/^\s*[\r\n]/gm, '');
+}
 
 const getZhihuNovel = async () => {
     if (!novelUrl.value) {
@@ -232,7 +240,8 @@ const upload = async (platform: string) => {
         isWxUpload.value = true;
     } else if (platform === 'bd') {
         isBdUpload.value = true;
-    } else if (platform === 'hy') {
+    } else if (platform === 'all') {
+        isAllUpload.value = true;
     }
 
     await invoke("upload_video", { platform, path: videoPath.value, tags: tags.value, name: novelName.value }).then(() => {
@@ -243,6 +252,7 @@ const upload = async (platform: string) => {
         isKsUpload.value = false;
         isWxUpload.value = false;
         isBdUpload.value = false;
+        isAllUpload.value = false;
     });
 };
 
