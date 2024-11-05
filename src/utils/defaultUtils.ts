@@ -1,5 +1,13 @@
 // utils.ts
 
+//解析cookie
+export const parseCookies = (cookieString: string): Record<string, string> =>
+    cookieString.split(';').reduce((cookies, cookie) => {
+        const [key, value] = cookie.trim().split('=');
+        cookies[key] = decodeURIComponent(value);
+        return cookies;
+    }, {} as Record<string, string>);
+
 // ISO 8601 转 秒
 export const ISO8601ToSeconds = (duration: string): number => {
     const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
