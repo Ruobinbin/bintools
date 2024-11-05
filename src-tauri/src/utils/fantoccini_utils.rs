@@ -509,14 +509,8 @@ pub async fn upload_all(path: &str, tags: &Vec<String>, name: &str) -> Result<()
             .click()
             .await
             .map_err(|e| e.to_string())?;
-
         c.wait()
-            .for_element(Locator::Css(".cropper-view-box img"))
-            .await
-            .map_err(|e| e.to_string())?;
-
-        c.wait()
-            .for_element(Locator::Css(".bcc-button.bcc-button--primary.large"))
+            .for_element(Locator::XPath("//span[contains(text(), ' 完成 ')]"))
             .await
             .map_err(|e| e.to_string())?
             .click()
