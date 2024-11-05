@@ -94,7 +94,6 @@ export const getSpeakers = async (): Promise<Speaker[]> => {
         }
 
         const voices = await response.json();
-        console.log(voices);
         const zhVoices = voices.filter((voice: { Locale: string; }) => voice.Locale === 'zh-CN');
         const voiceDetails: Speaker[] = zhVoices.map((voice: { ShortName: string; LocalName: string; }) => ({
             shortName: voice.ShortName,
