@@ -160,6 +160,7 @@ watch(novelIntro, (newIntro) => {
 function removeNumberedLines() {
     novelContents.value = novelContents.value.replace(/^\d+\s*$/gm, '');
     novelContents.value = novelContents.value.replace(/^\s*[\r\n]/gm, '');
+    novelContents.value = novelContents.value.replace(/\n/g, '');
 }
 
 const getZhihuNovel = async () => {
@@ -382,7 +383,7 @@ const generateVideo = async () => {
             "-i", "/workspace/novel_output/audios.wav",
             ...(selectedBgm.value ? ["-stream_loop", "-1", "-i", `/workspace/novel_output/bgm/${getFileNameFromPath(selectedBgm.value)}`] : []),
             "-filter_complex", `
-                [0:v]subtitles=/workspace/novel_output/audios.srt:force_style='FontName=ZCOOL KuaiLe,FontSize=8,Spacing=-2,PrimaryColour=&H00FFFF&,WrapStyle=0,MarginV=200,Width=10'[v];
+                [0:v]subtitles=/workspace/novel_output/audios.srt:force_style='FontName=ZCOOL KuaiLe,FontSize=8,Spacing=-2,PrimaryColour=&H00FFFF&,WrapStyle=0,MarginV=160,Width=10'[v];
                 ${novelName.value ? `[v]drawtext=text='${novelName.value}:'x='if(lt(t,2), lerp((w-text_w)/2, 50, t/2), 50)':y='if(lt(t,2), lerp((h-text_h)/2-150, 50, t/2), 50)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize='if(lt(t,2), lerp(300, 100, t/2), 100)':shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
                 ${novelIntro.value ? `[v]drawtext=text='${novelIntro.value}:'x='(w-text_w)/2':y='if(lt(t,2), lerp((h-text_h)/2+150+text_h/2-150, h, t/2), h)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize=150:shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
                 ${filterComplex}

@@ -24,6 +24,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2"
 tauri-plugin-http = "2"
+rand = "0.8.5"
+tokio-tungstenite = { version = "0.24.0", features = ["rustls-tls-native-roots"] }
+brotli = "7.0.0"
 
 [target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
 tauri-plugin-global-shortcut = "2"
