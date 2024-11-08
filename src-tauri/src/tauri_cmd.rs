@@ -1,9 +1,5 @@
 use crate::utils;
-use brotli::BrotliDecompress;
-use reqwest::header::{HeaderMap, HeaderValue, COOKIE};
-use serde_json::Value;
 use std::fs;
-use std::io::{self, Cursor};
 use std::path::Path;
 use std::path::PathBuf;
 use tauri::command;
@@ -16,34 +12,6 @@ use crate::{gpt_sovits_model_dir, novel_output_dir};
 pub async fn input_enter(value: &str) -> Result<String, String> {
     println!("input_enter: {}", value);
     Ok(value.to_string())
-}
-
-#[command]
-pub async fn proxy_request(url: String, cookie: Option<String>) -> Result<Value, String> {
-    let client = reqwest::Client::new();
-
-    let mut request_builder = client.get(&url);
-
-    if let Some(cookie_value) = cookie {
-        let mut headers = HeaderMap::new();
-        let cookie = HeaderValue::from_str(&cookie_value).unwrap();
-        headers.insert(COOKIE, cookie);
-        request_builder = request_builder.headers(headers);
-    }
-
-    let response = request_builder
-        .send()
-        .await
-        .map_err(|e| format!("请求失败: {}", e))?;
-
-    if response.status().is_success() {
-        response
-            .json()
-            .await
-            .map_err(|_| "解析JSON响应失败".to_string())
-    } else {
-        Err(format!("HTTP错误: {}", response.status()))
-    }
 }
 
 //判断容器是否运行
@@ -190,7 +158,6 @@ pub async fn open_path_or_file(path: String) -> Result<(), String> {
 }
 
 //edge tts
-
 #[command]
 pub async fn edge_tts(
     speaker: String,
@@ -234,16 +201,4 @@ pub async fn upload_video(
         _ => return Err("不支持的平台".to_string()),
     };
     Ok(())
-}
-
-//解压缩
-#[command]
-pub fn decompress_brotli(data: Vec<u8>) -> Result<Vec<u8>, String> {
-    let mut decompressed_data = Vec::new();
-    let mut reader = Cursor::new(data);
-
-    BrotliDecompress(&mut reader, &mut decompressed_data)
-        .map_err(|e| format!("解压缩失败: {}", e))?;
-
-    Ok(decompressed_data)
 }

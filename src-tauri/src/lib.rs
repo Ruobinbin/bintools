@@ -112,8 +112,6 @@ pub fn run() {
             tauri_cmd::delete_file,
             tauri_cmd::delete_file_with_prefix,
             tauri_cmd::upload_video,
-            tauri_cmd::proxy_request,
-            tauri_cmd::decompress_brotli,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
