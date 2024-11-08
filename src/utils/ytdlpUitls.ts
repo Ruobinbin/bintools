@@ -1,6 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
-import { insertVideo } from "./dbUtils";
-
 interface IThumbnail {
     url: string;
     height: number;
