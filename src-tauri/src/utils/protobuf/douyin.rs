@@ -14,10 +14,8 @@ pub struct Response {
     #[prost(uint32, tag = "6")]
     pub fetch_type: u32,
     #[prost(map = "string, string", tag = "7")]
-    pub route_params: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub route_params:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
     #[prost(uint64, tag = "8")]
     pub heartbeat_duration: u64,
     #[prost(bool, tag = "9")]
@@ -103,8 +101,6 @@ pub struct ChatMessage {
     #[prost(bool, tag = "18")]
     pub intercom_hide_user_card: bool,
     ///   repeated chatTagsList = 19;
-    #[prost(string, tag = "20")]
-    pub chat_by: ::prost::alloc::string::String,
     #[prost(uint32, tag = "21")]
     pub individual_chat_priority: u32,
     #[prost(message, optional, tag = "22")]
@@ -441,10 +437,8 @@ pub struct EffectConfig {
     #[prost(message, optional, tag = "15")]
     pub dynamic_image: ::core::option::Option<Image>,
     #[prost(map = "string, string", tag = "16")]
-    pub extra_map: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub extra_map:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
     #[prost(uint64, tag = "17")]
     pub mp4_anim_asset_id: u64,
     #[prost(uint64, tag = "18")]
@@ -1228,10 +1222,8 @@ pub struct RoomMessage {
     #[prost(string, tag = "20")]
     pub biz_scene: ::prost::alloc::string::String,
     #[prost(map = "string, string", tag = "30")]
-    pub buried_point_map: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub buried_point_map:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

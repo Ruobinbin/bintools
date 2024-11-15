@@ -18,6 +18,11 @@
         </el-tab-pane>
         <el-tab-pane label=" 最后合成">
             <div>
+                <el-progress type="circle" :percentage="generateAudioPercentage">
+                    <template #default="{ percentage }">
+                        生成音频{{ percentage }}%
+                    </template>
+                </el-progress>
                 <el-progress type="circle" :percentage="aeneasPercentage">
                     <template #default="{ percentage }">
                         生成字幕{{ percentage }}%
@@ -35,7 +40,7 @@
                 </el-progress>
             </div>
             <el-divider>操作</el-divider>
-            <el-button @click="generateVideo">合成视频</el-button>
+            <el-button @click="generateVideo" :loading="isVideoGenerating">合成视频</el-button>
             <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
             <el-divider>设置</el-divider>
             <el-input v-model="novelName" type="textarea" placeholder="小说名" />
@@ -73,12 +78,7 @@
             <video width="10%" :src="`${convertFileSrc(videoPath)}?t=${new Date().getTime()}`" controls />
             <el-button @click="selectFile">选择文件</el-button>
             <el-input v-model="videoPath" placeholder="视频路径" readonly></el-input>
-            <el-button @click="upload('bilibili')" :loading="isBilibiliUpload">bilibili上传</el-button>
-            <el-button @click="upload('douyin')" :loading="isDyUpload">抖音上传</el-button>
-            <el-button @click="upload('ks')" :loading="isKsUpload">快手上传</el-button>
-            <el-button @click="upload('wx')" :loading="isWxUpload">微信上传</el-button>
-            <el-button @click="upload('bd')" :loading="isBdUpload">百度上传</el-button>
-            <el-button @click="upload('all')" :loading="isAllUpload">一键上传</el-button>
+            <el-button @click="upload()" :loading="isUpload">一键上传</el-button>
         </el-tab-pane>
         <el-tab-pane label=" docker日志">
             <DockerLog />
@@ -111,19 +111,16 @@ let bgmVolume = ref(0.1); // 默认音量为0.1（10%）
 let isEdgeTtsGenerating = ref(false); // 是否正在edgeTts生成
 let isAzureTtsGenerating = ref(false); // 是否正在Azure TTS生成
 let isIncludeVideoAudio = ref(false); // 是否包含视频音频
+let isVideoGenerating = ref(false); // 是否正在生成视频
 let videoAudioVolume = ref(0.1); // 视频音频音量
 let novelName = ref(''); // 小说名
 let novelIntro = ref(''); // 小说介绍
 let aeneasPercentage = ref(0)
 let formatVideoPercentage = ref(0); // 统一格式进度
 let synthesizeVideoPercentage = ref(0); // 合成视频进度
+let generateAudioPercentage = ref(0); // 生成音频进度
 let videoPath = ref("");
-let isBilibiliUpload = ref(false);
-let isDyUpload = ref(false);
-let isKsUpload = ref(false);
-let isWxUpload = ref(false);
-let isBdUpload = ref(false);
-let isAllUpload = ref(false);
+let isUpload = ref(false);
 let tagInput = ref('');
 let tags = ref<string[]>([]);
 let novelUrl = ref('');
@@ -216,7 +213,7 @@ const selectFile = async () => {
         localStorage.setItem("uploadVideoPath", file);
     }
 };
-const upload = async (platform: string) => {
+const upload = async () => {
 
     if (!videoPath.value) {
         ElMessage.warning('请选择视频');
@@ -231,29 +228,12 @@ const upload = async (platform: string) => {
         return;
     }
 
-    if (platform === 'bilibili') {
-        isBilibiliUpload.value = true;
-    } else if (platform === 'douyin') {
-        isDyUpload.value = true;
-    } else if (platform === 'ks') {
-        isKsUpload.value = true;
-    } else if (platform === 'wx') {
-        isWxUpload.value = true;
-    } else if (platform === 'bd') {
-        isBdUpload.value = true;
-    } else if (platform === 'all') {
-        isAllUpload.value = true;
-    }
+    isUpload.value = true;
 
-    await invoke("upload_video", { platform, path: videoPath.value, tags: tags.value, name: novelName.value }).then(() => {
+    await invoke("upload_video", { path: videoPath.value, tags: tags.value, name: novelName.value }).then(() => {
         ElMessage.success('上传成功');
     }).finally(() => {
-        isBilibiliUpload.value = false;
-        isDyUpload.value = false;
-        isKsUpload.value = false;
-        isWxUpload.value = false;
-        isBdUpload.value = false;
-        isAllUpload.value = false;
+        isUpload.value = false;
     });
 };
 
@@ -292,17 +272,22 @@ const fetchBgmList = async () => {
 
 
 const generateVideo = async () => {
+    isVideoGenerating.value = true;
     aeneasPercentage.value = 0;
     formatVideoPercentage.value = 0;
     synthesizeVideoPercentage.value = 0;
 
     try {
-        // 检查小说内容
         if (!novelContents.value) {
             ElMessage.warning('请输入小说内容');
             return;
         }
-
+        // removeNumberedLines()
+        // await azureTtsGenerateAllAudio().catch(() => {
+        //     return;
+        // });
+        generateAudioPercentage.value = 100;
+        //选择视频
         const audioDuration = await getAudioDuration(convertFileSrc(OUTPUT_PATH.value + '\\audios.wav'));
         const selected_videos = videoList.value.filter(video => video.selected);
         let totalSelectedDuration = selected_videos.reduce((acc, video) => acc + video.duration, 0);
@@ -312,7 +297,6 @@ const generateVideo = async () => {
             selected_videos.push(randomVideo);
             totalSelectedDuration += randomVideo.duration;
         }
-
 
         // 生成字幕所需的txt文件
         formatNovel();
@@ -326,8 +310,6 @@ const generateVideo = async () => {
         let outputPath = "/workspace/novel_output/audios.srt";
         await invoke('run_aeneas_cmd', { audioPath, textPath, outputPath });
         aeneasPercentage.value = 100
-
-
 
         let processedCount = 0;
         //统一视频大小
@@ -383,9 +365,9 @@ const generateVideo = async () => {
             "-i", "/workspace/novel_output/audios.wav",
             ...(selectedBgm.value ? ["-stream_loop", "-1", "-i", `/workspace/novel_output/bgm/${getFileNameFromPath(selectedBgm.value)}`] : []),
             "-filter_complex", `
-                [0:v]subtitles=/workspace/novel_output/audios.srt:force_style='FontName=ZCOOL KuaiLe,FontSize=8,Spacing=-2,PrimaryColour=&H00FFFF&,WrapStyle=0,MarginV=160,Width=10'[v];
-                ${novelName.value ? `[v]drawtext=text='${novelName.value}:'x='if(lt(t,2), lerp((w-text_w)/2, 50, t/2), 50)':y='if(lt(t,2), lerp((h-text_h)/2-150, 50, t/2), 50)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize='if(lt(t,2), lerp(300, 100, t/2), 100)':shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
-                ${novelIntro.value ? `[v]drawtext=text='${novelIntro.value}:'x='(w-text_w)/2':y='if(lt(t,2), lerp((h-text_h)/2+150+text_h/2-150, h, t/2), h)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize=150:shadowcolor=black:shadowx=10:shadowy=10[v];` : ''}
+                [0:v]subtitles=/workspace/novel_output/audios.srt:force_style='FontName=ZCOOL KuaiLe,FontSize=8,Spacing=-2,PrimaryColour=&H00FFFF&,WrapStyle=0,MarginV=160,MaxWidth=300'[v];
+                ${novelName.value ? `[v]drawtext=text='${novelName.value}:'x='if(lt(t,2), lerp((w-text_w)/2, 100, t/2), 100)':y='if(lt(t,2), lerp((h-text_h)/2-150, 100, t/2), 100)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize='if(lt(t,2), lerp(250, 100, t/2), 100)':borderw=15:bordercolor=black[v];` : ''}
+                ${novelIntro.value ? `[v]drawtext=text='${novelIntro.value}:'x='(w-text_w)/2':y='if(lt(t,2), lerp((h-text_h)/2+text_h/2, h, t/2), h)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize=120:shadowcolor=black:borderw=10:bordercolor=black[v];` : ''}
                 ${filterComplex}
             `,
             "-map", "[v]",
@@ -403,9 +385,13 @@ const generateVideo = async () => {
         synthesizeVideoPercentage.value = 100
         videoPath.value = OUTPUT_PATH.value + '\\final_video.mp4';
 
+        // await upload()
+
     } catch (error) {
         ElMessage.error(`操作失败: ${error as string}`);
         return;
+    } finally {
+        isVideoGenerating.value = false;
     }
 };
 

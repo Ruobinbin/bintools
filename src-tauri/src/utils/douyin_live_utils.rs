@@ -11,14 +11,14 @@ mod douyin {
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0";
 
-pub struct WebSocketClient {
+pub struct douyinWs {
     url: String,
     callbacks: HashMap<String, Box<dyn Fn(&Value) + Send + Sync>>,
 }
 
-impl WebSocketClient {
+impl douyinWs {
     pub fn new(url: &str) -> Self {
-        WebSocketClient {
+        douyinWs {
             url: url.to_string(),
             callbacks: HashMap::new(),
         }
@@ -86,9 +86,29 @@ impl WebSocketClient {
                                             .expect("解析聊天消息失败");
                                     let user = chat_msg.user.expect("获取用户信息失败");
                                     let json_msg = json!({
-                                        "type": "WebcastChatMessage",
                                         "content": chat_msg.content,
                                         "user": user.nick_name,
+                                    });
+                                    callback(&json_msg);
+                                }
+                                "WebcastLikeMessage" => {
+                                    let msg = douyin::LikeMessage::decode(msg.payload.as_slice())
+                                        .expect("解析点赞消息失败");
+                                    let user = msg.user.expect("获取用户信息失败");
+                                    let json_msg = json!({
+                                        "user": user.nick_name,
+                                        "count": msg.count,
+                                    });
+                                    callback(&json_msg);
+                                }
+                                "WebcastGiftMessage" => {
+                                    let msg = douyin::GiftMessage::decode(msg.payload.as_slice())
+                                        .expect("解析礼物消息失败");
+                                    let user = msg.user.expect("获取用户信息失败");
+                                    let json_msg = json!({
+                                        "user": user.nick_name,
+                                        "gift_id": msg.gift_id,
+                                        "count": msg.combo_count,
                                     });
                                     callback(&json_msg);
                                 }

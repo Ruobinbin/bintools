@@ -15,15 +15,15 @@ pub struct WsPacket {
     pub body: Option<String>,
 }
 
-pub struct WebSocketClient {
+pub struct bilibiliWs {
     live_id: String,
     cookie: Option<String>,
     callbacks: HashMap<String, Box<dyn Fn(&Value) + Send + Sync>>,
 }
 
-impl WebSocketClient {
+impl bilibiliWs {
     pub fn new(live_id: &str, cookie: Option<String>) -> Self {
-        WebSocketClient {
+        bilibiliWs {
             live_id: live_id.to_string(),
             cookie,
             callbacks: HashMap::new(),
@@ -207,7 +207,37 @@ impl WebSocketClient {
                                 let json_value: Value = serde_json::from_str(&body).unwrap();
                                 let cmd = json_value["cmd"].as_str().unwrap();
                                 if let Some(callback) = self.callbacks.get(cmd) {
-                                    callback(&json_value);
+                                    match cmd {
+                                        "DANMU_MSG" => {
+                                            let json_msg = json!({
+                                                "user": json_value["info"][2][1].as_str().unwrap(),
+                                                "content": json_value["info"][1].as_str().unwrap(),
+                                            });
+                                            callback(&json_msg);
+                                        }
+                                        "SEND_GIFT" => {
+                                            let json_msg = json!({
+                                                "user": json_value["data"]["uname"].as_str().unwrap(),
+                                                "gift_name": json_value["data"]["giftName"].as_str().unwrap(),
+                                                "count": json_value["data"]["num"].as_i64().unwrap(),
+                                            });
+                                            callback(&json_msg);
+                                        }
+                                        "INTERACT_WORD" => {
+                                            let json_msg = json!({
+                                                "user": json_value["data"]["uname"].as_str().unwrap(),
+                                                "msg_type": json_value["data"]["msg_type"].as_i64().unwrap(),
+                                            });
+                                            callback(&json_msg);
+                                        }
+                                        "LIKE_INFO_V3_CLICK" => {
+                                            let json_msg = json!({
+                                                "user": json_value["data"]["uname"].as_str().unwrap(),
+                                            });
+                                            callback(&json_msg);
+                                        }
+                                        _ => {}
+                                    }
                                 }
                                 offset_ver3 += packet_len;
                             }

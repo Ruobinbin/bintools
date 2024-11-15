@@ -185,20 +185,6 @@ pub async fn edge_tts_get_voices() -> Result<Vec<String>, String> {
 }
 
 #[command]
-pub async fn upload_video(
-    platform: String,
-    path: String,
-    tags: Vec<String>,
-    name: String,
-) -> Result<(), String> {
-    match platform.as_str() {
-        "bilibili" => utils::fantoccini_utils::upload_bilibili(&path, &tags, &name).await?,
-        "douyin" => utils::fantoccini_utils::upload_douyin(&path, &tags, &name).await?,
-        "ks" => utils::fantoccini_utils::upload_ks(&path, &tags, &name).await?,
-        "wx" => utils::fantoccini_utils::upload_wx(&path, &tags, &name).await?,
-        "bd" => utils::fantoccini_utils::upload_bd(&path, &tags, &name).await?,
-        "all" => utils::fantoccini_utils::upload_all(&path, &tags, &name).await?,
-        _ => return Err("不支持的平台".to_string()),
-    };
-    Ok(())
+pub async fn upload_video(path: String, tags: Vec<String>, name: String) -> Result<(), String> {
+    utils::fantoccini_utils::upload_all(&path, &tags, &name).await
 }
