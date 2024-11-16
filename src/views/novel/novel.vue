@@ -1,16 +1,14 @@
 <template>
     <el-tabs tab-position="left">
         <el-tab-pane label="小说">
-            <el-text class="mx-1" type="info">长度:{{ novelContents.length }}</el-text>
-            <div style="display: flex; align-items: center;">
-                <el-input v-model="novelUrl" placeholder="小说链接" />
+            <el-text type="info">长度:{{ novelContents.length }}</el-text>
+            <div flex items-center>
+                <el-input w-md v-model="novelUrl" placeholder="小说链接" />
                 <el-button @click="getZhihuNovel">打开知乎小说</el-button>
             </div>
             <el-button @click="removeNumberedLines">去除编号</el-button>
-            <el-button @click="edgeTtsGenerateAllAudio" :loading="isEdgeTtsGenerating">edgeTts生成音频</el-button>
-            <el-button @click="azureTtsGenerateAllAudio" :loading="isAzureTtsGenerating">Azure TTS生成音频</el-button>
-            <audio :src="`${convertFileSrc(audiosSrc)}?t=${new Date().getTime()}`" controls></audio>
-            <el-input v-model="novelContents" style="width: 100%;" autosize type="textarea" placeholder="小说内容" />
+            <el-button @click="replaceNewlineWithEnter">替换\n为换行</el-button>
+            <el-input v-model="novelContents" h-100 w-full type="textarea" placeholder="小说内容" />
         </el-tab-pane>
         <el-tab-pane label="视频">
             <VideoList @updateVideoList="handleVideoListUpdate"
@@ -43,42 +41,58 @@
             <el-button @click="generateVideo" :loading="isVideoGenerating">合成视频</el-button>
             <el-button @click="open(OUTPUT_PATH)">打开输出目录</el-button>
             <el-divider>设置</el-divider>
-            <el-input v-model="novelName" type="textarea" placeholder="小说名" />
-            <el-input v-model="novelIntro" type="textarea" placeholder="小说介绍" />
-            <el-select v-model="videoOrientation" placeholder="选择视频方向">
-                <el-option label="横屏 (Landscape)" value="landscape"></el-option>
-                <el-option label="竖屏 (Portrait)" value="portrait"></el-option>
-            </el-select>
-            <div style="display: flex; align-items: center;">
-                <el-checkbox v-model="isIncludeVideoAudio" style="flex-grow: 1;">包含视频音频</el-checkbox>
-                <el-slider v-model="videoAudioVolume" :min="0" :max="1" :step="0.01" show-stops
-                    v-if="isIncludeVideoAudio" style="flex-grow: 1;"></el-slider>
-            </div>
-            <div>
-                <el-select v-model="selectedBgm" placeholder="选择BGM">
-                    <el-option v-for=" bgm in bgmList" :key="bgm" :label="bgm" :value="bgm"></el-option>
+            <div w-md>
+                <el-radio-group v-model="ttsOption">
+                    <el-radio label="edgetts">edgeTts</el-radio>
+                    <el-radio label="azuretts">azureTts</el-radio>
+                </el-radio-group>
+                <el-input v-model="novelName" placeholder="小说名" />
+                <el-input v-model="novelIntro" type="textarea" placeholder="小说介绍" h-25 />
+                <el-select v-model="videoOrientation" placeholder="选择视频方向">
+                    <el-option label="横屏 (Landscape)" value="landscape"></el-option>
+                    <el-option label="竖屏 (Portrait)" value="portrait"></el-option>
                 </el-select>
-                <el-input v-model="BgmUrl" placeholder="下载BGM" @keyup.enter="downloadBgm(BgmUrl)"></el-input>
-                <audio v-if="selectedBgm" :src="convertFileSrc(selectedBgm)" controls></audio>
-                <el-slider v-if="selectedBgm" v-model="bgmVolume" :min="0" :max="1" :step="0.01" show-stops
-                    inline></el-slider>
+                <div style="display: flex; align-items: center;">
+                    <el-checkbox v-model="isIncludeVideoAudio" style="flex-grow: 1;">包含视频音频</el-checkbox>
+                    <el-slider v-model="videoAudioVolume" :min="0" :max="1" :step="0.01" show-stops
+                        v-if="isIncludeVideoAudio" style="flex-grow: 1;"></el-slider>
+                </div>
+                <div>
+                    <el-select v-model="selectedBgm" placeholder="选择BGM">
+                        <el-option v-for=" bgm in bgmList" :key="bgm" :label="bgm" :value="bgm"></el-option>
+                    </el-select>
+                    <div flex items-center>
+                        <el-input v-model="BgmUrl" placeholder="下载BGM"></el-input>
+                        <el-button @click="downloadBgm(BgmUrl)">下载BGM</el-button>
+                    </div>
+                    <audio v-if="selectedBgm" :src="convertFileSrc(selectedBgm)" controls></audio>
+                    <el-slider v-if="selectedBgm" v-model="bgmVolume" :min="0" :max="1" :step="0.01" show-stops
+                        inline></el-slider>
+                </div>
             </div>
             <el-divider>上传</el-divider>
-            <div>
-                <div class="tags">
-                    <el-tag v-for="(tag, index) in tags" :key="index" closable @close="removeTag(index)"
-                        style="margin-right: 5px;">
-                        {{ tag }}
-                    </el-tag>
-                </div>
+            <div flex items-center w-md>
                 <el-input v-model="tagInput" placeholder="输入标签并按回车" @keyup.enter="addTag"
                     @keydown.backspace="removeLastTag">
                 </el-input>
+                <el-tag v-for="(tag, index) in tags" :key="index" closable @close="removeTag(index)">
+                    {{ tag }}
+                </el-tag>
             </div>
-            <video width="10%" :src="`${convertFileSrc(videoPath)}?t=${new Date().getTime()}`" controls />
-            <el-button @click="selectFile">选择文件</el-button>
-            <el-input v-model="videoPath" placeholder="视频路径" readonly></el-input>
-            <el-button @click="upload()" :loading="isUpload">一键上传</el-button>
+            <div flex items-center w-md>
+                <el-input v-model="videoPath" placeholder="视频路径" readonly></el-input>
+                <el-button @click="selectFile">选择文件</el-button>
+            </div>
+            <div>
+                <el-checkbox v-model="isBilibili">b站</el-checkbox>
+                <el-checkbox v-model="isDouyin">抖音</el-checkbox>
+                <el-checkbox v-model="isKuaishou">快手</el-checkbox>
+                <el-checkbox v-model="isBaidu">百度</el-checkbox>
+                <el-checkbox v-model="isDayuhao">大鱼号</el-checkbox>
+                <el-button @click="upload()" :loading="isUpload">一键上传</el-button>
+            </div>
+            <audio :src="`${convertFileSrc(audiosSrc)}?t=${new Date().getTime()}`" controls></audio>
+            <video h-100 :src="`${convertFileSrc(videoPath)}?t=${new Date().getTime()}`" controls />
         </el-tab-pane>
         <el-tab-pane label=" docker日志">
             <DockerLog />
@@ -124,6 +138,13 @@ let isUpload = ref(false);
 let tagInput = ref('');
 let tags = ref<string[]>([]);
 let novelUrl = ref('');
+let isBilibili = ref(false);
+let isDouyin = ref(false);
+let isKuaishou = ref(false);
+let isBaidu = ref(false);
+let isDayuhao = ref(false);
+let ttsOption = ref('edgetts');
+
 //载入时触发
 onMounted(async () => {
     OUTPUT_PATH.value = (await resourceDir()) + '\\user_files\\novel_output';
@@ -136,6 +157,13 @@ onMounted(async () => {
     novelIntro.value = localStorage.getItem('novelIntro') || '';
     videoPath.value = localStorage.getItem("uploadVideoPath") || "";
     tags.value = JSON.parse(localStorage.getItem('tags') || '[]');
+    ttsOption.value = localStorage.getItem('ttsOption') || 'edgetts';
+    // 初始化平台布尔值
+    isBilibili.value = localStorage.getItem('isBilibili') === 'true';
+    isDouyin.value = localStorage.getItem('isDouyin') === 'true';
+    isKuaishou.value = localStorage.getItem('isKuaishou') === 'true';
+    isBaidu.value = localStorage.getItem('isBaidu') === 'true';
+    isDayuhao.value = localStorage.getItem('isDayuhao') === 'true';
 });
 
 watch(videoAudioVolume, (newVolume) => {
@@ -153,12 +181,36 @@ watch(novelName, (newName) => {
 watch(novelIntro, (newIntro) => {
     localStorage.setItem('novelIntro', newIntro);
 });
+watch(isBilibili, (newValue) => {
+    localStorage.setItem('isBilibili', newValue.toString());
+});
+watch(isDouyin, (newValue) => {
+    localStorage.setItem('isDouyin', newValue.toString());
+});
+watch(isKuaishou, (newValue) => {
+    localStorage.setItem('isKuaishou', newValue.toString());
+});
+watch(isBaidu, (newValue) => {
+    localStorage.setItem('isBaidu', newValue.toString());
+});
+watch(isDayuhao, (newValue) => {
+    localStorage.setItem('isDayuhao', newValue.toString());
+});
+watch(ttsOption, (newValue) => {
+    localStorage.setItem('ttsOption', newValue);
+});
+
 
 function removeNumberedLines() {
     novelContents.value = novelContents.value.replace(/^\d+\s*$/gm, '');
     novelContents.value = novelContents.value.replace(/^\s*[\r\n]/gm, '');
     novelContents.value = novelContents.value.replace(/\n/g, '');
 }
+
+function replaceNewlineWithEnter() {
+    novelContents.value = novelContents.value.replace(/\\n/g, '\n');
+}
+
 
 const getZhihuNovel = async () => {
     if (!novelUrl.value) {
@@ -230,7 +282,20 @@ const upload = async () => {
 
     isUpload.value = true;
 
-    await invoke("upload_video", { path: videoPath.value, tags: tags.value, name: novelName.value }).then(() => {
+    let selectedPlatforms = [
+        isBilibili.value ? 'bilibili' : null,
+        isDouyin.value ? 'douyin' : null,
+        isKuaishou.value ? 'kuaishou' : null,
+        isBaidu.value ? 'baidu' : null,
+        isDayuhao.value ? 'dayuhao' : null
+    ].filter(Boolean);
+
+    await invoke("upload_video", {
+        path: videoPath.value,
+        tags: tags.value,
+        name: novelName.value,
+        platforms: selectedPlatforms
+    }).then(() => {
         ElMessage.success('上传成功');
     }).finally(() => {
         isUpload.value = false;
@@ -282,10 +347,15 @@ const generateVideo = async () => {
             ElMessage.warning('请输入小说内容');
             return;
         }
-        // removeNumberedLines()
-        // await azureTtsGenerateAllAudio().catch(() => {
-        //     return;
-        // });
+        if (ttsOption.value === 'azuretts') {
+            await azureTtsGenerateAllAudio().catch(() => {
+                return;
+            });
+        } else {
+            await edgeTtsGenerateAllAudio().catch(() => {
+                return;
+            });
+        }
         generateAudioPercentage.value = 100;
         //选择视频
         const audioDuration = await getAudioDuration(convertFileSrc(OUTPUT_PATH.value + '\\audios.wav'));
@@ -385,7 +455,7 @@ const generateVideo = async () => {
         synthesizeVideoPercentage.value = 100
         videoPath.value = OUTPUT_PATH.value + '\\final_video.mp4';
 
-        // await upload()
+        await upload()
 
     } catch (error) {
         ElMessage.error(`操作失败: ${error as string}`);

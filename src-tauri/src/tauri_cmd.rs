@@ -185,6 +185,11 @@ pub async fn edge_tts_get_voices() -> Result<Vec<String>, String> {
 }
 
 #[command]
-pub async fn upload_video(path: String, tags: Vec<String>, name: String) -> Result<(), String> {
-    utils::fantoccini_utils::upload_all(&path, &tags, &name).await
+pub async fn upload_video(
+    path: String,
+    tags: Vec<String>,
+    name: String,
+    platforms: Vec<String>,
+) -> Result<(), String> {
+    utils::fantoccini_utils::upload_all(&path, &tags, &name, &platforms).await
 }

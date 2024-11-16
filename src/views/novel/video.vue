@@ -1,25 +1,27 @@
 <template>
     <el-text>所选视频时长: {{ totalVideoDuration }}</el-text>
-    <div style="display: flex; align-items: center;">
-        <el-select v-model="selectedChannel" placeholder="选择博主主页链接" style="flex-grow: 1; margin-right: 10px;">
+    <div flex items-center>
+        <el-select v-model="selectedChannel" placeholder="选择博主主页链接">
             <el-option v-for="channel in channelUrls" :key="channel" :label="channel" :value="channel">
                 {{ channel }}
             </el-option>
         </el-select>
         <el-button type="default" @click="open(selectedChannel)">打开</el-button>
-        <el-input v-model="fetchVideoContent" placeholder="获取数量" style="max-width: 60px;" />
+        <div w-20>
+            <el-input v-model="fetchVideoContent" placeholder="获取数量" />
+        </div>
         <el-button :loading="isGetting" type="success" @click="getVideoList">获取</el-button>
         <el-button type="primary" @click="addNewChannelUrl">添加</el-button>
         <el-button type="danger" @click="deleteCurrentChannelUrl">删除</el-button>
     </div>
     <div>
-        <el-collapse v-model="activeCollapse" style="background-color: black;">
+        <el-collapse v-model="activeCollapse" bg-black>
             <el-collapse-item title="本地视频" name="1">
-                <div style="display: flex;flex-wrap: wrap;gap: 10px;">
-                    <div :style="{ background: video.selected ? 'yellow' : 'lightgrey', flex: '0 1 auto', width: '200px', borderRadius: '10px' }"
-                        v-for="video in currentVideoList" :key="video.id">
-                        <img :src="video.thumbnail" :alt="video.url" @click="toggleVideoSelection(video)"
-                            style="width: 100%; height: auto; border-radius: 10px;" />
+                <div flex flex-wrap gap-2>
+                    <div :class="{ 'bg-yellow': video.selected, 'bg-gray': !video.selected }" flex-0-1-auto w-50
+                        rounded-lg v-for="video in currentVideoList" :key="video.id">
+                        <img :src="video.thumbnail" :alt="video.url" @click="toggleVideoSelection(video)" w-full h-auto
+                            rounded-lg />
                         <p><el-link type="primary" @click.prevent="open(video.url)">点击此处观看</el-link></p>
                         <p><el-text>ID: {{ video.id }}</el-text></p>
                         <p><el-text>时长: {{ video.duration }} 秒</el-text></p>
@@ -29,11 +31,11 @@
                 </div>
             </el-collapse-item>
             <el-collapse-item title="网络视频" name="2">
-                <div style="display: flex;flex-wrap: wrap;gap: 10px;">
-                    <div :style="{ background: video.selected ? 'yellow' : 'lightgrey', flex: '0 1 auto', width: '200px', borderRadius: '10px' }"
-                        v-for="video in newVideoList" :key="video.id">
-                        <img :src="video.thumbnail" :alt="video.url" @click="addTOVideoList(video)"
-                            style="width: 100%; height: auto; border-radius: 10px;" />
+                <div flex flex-wrap gap-2>
+                    <div :class="{ 'bg-yellow': video.selected, 'bg-gray': !video.selected }" flex-0-1-auto w-50
+                        rounded-lg v-for="video in newVideoList" :key="video.id">
+                        <img :src="video.thumbnail" :alt="video.url" @click="addTOVideoList(video)" w-full h-auto
+                            rounded-lg />
                         <p><el-link type="primary" @click.prevent="open(video.url)">点击此处观看</el-link></p>
                         <p><el-text>ID: {{ video.id }}</el-text></p>
                         <p><el-text>时长: {{ video.duration }} 秒</el-text></p>
@@ -45,7 +47,6 @@
         </el-collapse>
     </div>
     <div>
-
     </div>
 </template>
 <script lang="ts" setup>
