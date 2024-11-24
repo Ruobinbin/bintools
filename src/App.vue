@@ -17,6 +17,9 @@ const handleInputEnter = async () => {
     case '/set':
       await openWindow('setting', 'src/views/setting/setting.html');
       break;
+    case '/mc':
+      await openWindow('mclive', 'src/views/mclive/novel.html');
+      break;
     default:
       console.log(await invoke("input_enter", { value: input.value }))
   }

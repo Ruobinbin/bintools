@@ -4,7 +4,10 @@ use rand::seq::SliceRandom;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 pub struct WsPacket {
     pub len: Option<i32>,
@@ -15,18 +18,22 @@ pub struct WsPacket {
     pub body: Option<String>,
 }
 
-pub struct bilibiliWs {
+pub struct BilibiliWs {
     live_id: String,
     cookie: Option<String>,
-    callbacks: HashMap<String, Box<dyn Fn(&Value) + Send + Sync>>,
+    callbacks: Arc<Mutex<HashMap<String, Box<dyn Fn(&Value) + Send + Sync>>>>,
+    handle: Option<JoinHandle<()>>,
+    heartbeat_handle: Option<JoinHandle<()>>,
 }
 
-impl bilibiliWs {
+impl BilibiliWs {
     pub fn new(live_id: &str, cookie: Option<String>) -> Self {
-        bilibiliWs {
+        BilibiliWs {
             live_id: live_id.to_string(),
             cookie,
-            callbacks: HashMap::new(),
+            callbacks: Arc::new(Mutex::new(HashMap::new())),
+            handle: None,
+            heartbeat_handle: None,
         }
     }
 
@@ -127,7 +134,7 @@ impl bilibiliWs {
             .await
             .expect("发送认证包失败");
 
-        tokio::spawn(async move {
+        self.heartbeat_handle = Some(tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
             loop {
                 interval.tick().await;
@@ -147,122 +154,134 @@ impl bilibiliWs {
                     .await
                     .expect("发送心跳包失败");
             }
-        });
+        }));
 
-        // 处理接收到的消息
-        while let Some(msg) = read.next().await {
-            match msg {
-                Ok(msg) => {
-                    let data = msg.into_data();
-                    let mut offset = 0;
-                    while offset < data.len() {
-                        let packet_len =
-                            u32::from_be_bytes(data[offset..offset + 4].try_into().unwrap())
-                                as usize;
-                        let head_len =
-                            u16::from_be_bytes(data[offset + 4..offset + 6].try_into().unwrap())
-                                as usize;
-                        let packet_ver =
-                            u16::from_be_bytes(data[offset + 6..offset + 8].try_into().unwrap());
-                        let _packet_type =
-                            u32::from_be_bytes(data[offset + 8..offset + 12].try_into().unwrap());
-                        let _num =
-                            u32::from_be_bytes(data[offset + 12..offset + 16].try_into().unwrap());
-                        let data_array = &data[offset + head_len..offset + packet_len];
-                        if packet_ver == 3 {
-                            let mut decompressed = Vec::new();
-                            let mut reader = Cursor::new(data_array);
-                            BrotliDecompress(&mut reader, &mut decompressed)
-                                .expect("brotli解压失败");
-                            let mut offset_ver3 = 0;
-                            while offset_ver3 < decompressed.len() {
-                                let packet_len = u32::from_be_bytes(
-                                    decompressed[offset_ver3..offset_ver3 + 4]
-                                        .try_into()
-                                        .unwrap(),
-                                ) as usize;
-                                let head_len = u16::from_be_bytes(
-                                    decompressed[offset_ver3 + 4..offset_ver3 + 6]
-                                        .try_into()
-                                        .unwrap(),
-                                ) as usize;
-                                let _packet_ver = u16::from_be_bytes(
-                                    decompressed[offset_ver3 + 6..offset_ver3 + 8]
-                                        .try_into()
-                                        .unwrap(),
-                                );
-                                let _packet_type = u32::from_be_bytes(
-                                    decompressed[offset_ver3 + 8..offset_ver3 + 12]
-                                        .try_into()
-                                        .unwrap(),
-                                );
-                                let _num = u32::from_be_bytes(
-                                    decompressed[offset_ver3 + 12..offset_ver3 + 16]
-                                        .try_into()
-                                        .unwrap(),
-                                );
-                                let data_array =
-                                    &decompressed[offset_ver3 + head_len..offset_ver3 + packet_len];
-                                let body = String::from_utf8_lossy(data_array);
-                                let json_value: Value = serde_json::from_str(&body).unwrap();
-                                let cmd = json_value["cmd"].as_str().unwrap();
-                                if let Some(callback) = self.callbacks.get(cmd) {
-                                    match cmd {
-                                        "DANMU_MSG" => {
-                                            let json_msg = json!({
-                                                "user": json_value["info"][2][1].as_str().unwrap(),
-                                                "content": json_value["info"][1].as_str().unwrap(),
-                                            });
-                                            callback(&json_msg);
+        let callbacks = self.callbacks.clone();
+        let handle = tokio::spawn(async move {
+            while let Some(msg) = read.next().await {
+                match msg {
+                    Ok(msg) => {
+                        let data = msg.into_data();
+                        let mut offset = 0;
+                        while offset < data.len() {
+                            let packet_len =
+                                u32::from_be_bytes(data[offset..offset + 4].try_into().unwrap())
+                                    as usize;
+                            let head_len = u16::from_be_bytes(
+                                data[offset + 4..offset + 6].try_into().unwrap(),
+                            ) as usize;
+                            let packet_ver = u16::from_be_bytes(
+                                data[offset + 6..offset + 8].try_into().unwrap(),
+                            );
+                            let _packet_type = u32::from_be_bytes(
+                                data[offset + 8..offset + 12].try_into().unwrap(),
+                            );
+                            let _num = u32::from_be_bytes(
+                                data[offset + 12..offset + 16].try_into().unwrap(),
+                            );
+                            let data_array = &data[offset + head_len..offset + packet_len];
+                            if packet_ver == 3 {
+                                let mut decompressed = Vec::new();
+                                let mut reader = Cursor::new(data_array);
+                                BrotliDecompress(&mut reader, &mut decompressed)
+                                    .expect("brotli解压失败");
+                                let mut offset_ver3 = 0;
+                                while offset_ver3 < decompressed.len() {
+                                    let packet_len = u32::from_be_bytes(
+                                        decompressed[offset_ver3..offset_ver3 + 4]
+                                            .try_into()
+                                            .unwrap(),
+                                    ) as usize;
+                                    let head_len = u16::from_be_bytes(
+                                        decompressed[offset_ver3 + 4..offset_ver3 + 6]
+                                            .try_into()
+                                            .unwrap(),
+                                    ) as usize;
+                                    let _packet_ver = u16::from_be_bytes(
+                                        decompressed[offset_ver3 + 6..offset_ver3 + 8]
+                                            .try_into()
+                                            .unwrap(),
+                                    );
+                                    let _packet_type = u32::from_be_bytes(
+                                        decompressed[offset_ver3 + 8..offset_ver3 + 12]
+                                            .try_into()
+                                            .unwrap(),
+                                    );
+                                    let _num = u32::from_be_bytes(
+                                        decompressed[offset_ver3 + 12..offset_ver3 + 16]
+                                            .try_into()
+                                            .unwrap(),
+                                    );
+                                    let data_array = &decompressed
+                                        [offset_ver3 + head_len..offset_ver3 + packet_len];
+                                    let body = String::from_utf8_lossy(data_array);
+                                    let json_value: Value = serde_json::from_str(&body).unwrap();
+                                    let cmd = json_value["cmd"].as_str().unwrap();
+                                    if let Some(callback) = callbacks.lock().await.get(cmd) {
+                                        match cmd {
+                                            "DANMU_MSG" => {
+                                                let json_msg = json!({
+                                                    "user": json_value["info"][2][1].as_str().unwrap(),
+                                                    "content": json_value["info"][1].as_str().unwrap(),
+                                                });
+                                                callback(&json_msg);
+                                            }
+                                            "SEND_GIFT" => {
+                                                let json_msg = json!({
+                                                    "user": json_value["data"]["uname"].as_str().unwrap(),
+                                                    "gift_name": json_value["data"]["giftName"].as_str().unwrap(),
+                                                    "count": json_value["data"]["num"].as_i64().unwrap(),
+                                                });
+                                                callback(&json_msg);
+                                            }
+                                            "INTERACT_WORD" => {
+                                                let json_msg = json!({
+                                                    "user": json_value["data"]["uname"].as_str().unwrap(),
+                                                    "msg_type": json_value["data"]["msg_type"].as_i64().unwrap(),
+                                                });
+                                                callback(&json_msg);
+                                            }
+                                            "LIKE_INFO_V3_CLICK" => {
+                                                let json_msg = json!({
+                                                    "user": json_value["data"]["uname"].as_str().unwrap(),
+                                                });
+                                                callback(&json_msg);
+                                            }
+                                            _ => {}
                                         }
-                                        "SEND_GIFT" => {
-                                            let json_msg = json!({
-                                                "user": json_value["data"]["uname"].as_str().unwrap(),
-                                                "gift_name": json_value["data"]["giftName"].as_str().unwrap(),
-                                                "count": json_value["data"]["num"].as_i64().unwrap(),
-                                            });
-                                            callback(&json_msg);
-                                        }
-                                        "INTERACT_WORD" => {
-                                            let json_msg = json!({
-                                                "user": json_value["data"]["uname"].as_str().unwrap(),
-                                                "msg_type": json_value["data"]["msg_type"].as_i64().unwrap(),
-                                            });
-                                            callback(&json_msg);
-                                        }
-                                        "LIKE_INFO_V3_CLICK" => {
-                                            let json_msg = json!({
-                                                "user": json_value["data"]["uname"].as_str().unwrap(),
-                                            });
-                                            callback(&json_msg);
-                                        }
-                                        _ => {}
                                     }
+                                    offset_ver3 += packet_len;
                                 }
-                                offset_ver3 += packet_len;
+                            } else {
+                                // if packet_type == 3 {
+                                //     let body = u32::from_be_bytes(data_array[0..4].try_into().unwrap());
+                                // } else {
+                                //     let body = String::from_utf8_lossy(data_array);
+                                // }
                             }
-                        } else {
-                            // if packet_type == 3 {
-                            //     let body = u32::from_be_bytes(data_array[0..4].try_into().unwrap());
-                            // } else {
-                            //     let body = String::from_utf8_lossy(data_array);
-                            // }
+                            offset += packet_len;
                         }
-                        offset += packet_len;
+                    }
+                    Err(e) => {
+                        println!("接收消息错误: {:?}", e);
                     }
                 }
-                Err(e) => {
-                    println!("接收消息错误: {:?}", e);
-                }
             }
-        }
+        });
+        self.handle = Some(handle);
+        // 处理接收到的消息
     }
 
-    pub fn on<F>(&mut self, message_type: &str, callback: F)
+    pub async fn on<F>(&self, message_type: &str, callback: F)
     where
         F: Fn(&Value) + Send + Sync + 'static,
     {
-        self.callbacks
-            .insert(message_type.to_string(), Box::new(callback));
+        let mut callbacks = self.callbacks.lock().await;
+        callbacks.insert(message_type.to_string(), Box::new(callback));
+    }
+
+    pub async fn close(&mut self) {
+        self.heartbeat_handle.take().unwrap().abort();
+        self.handle.take().unwrap().abort();
     }
 }

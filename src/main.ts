@@ -6,6 +6,7 @@ import 'virtual:uno.css'
 import App from "./App.vue";
 import Novel from "./views/novel/novel.vue";
 import Setting from "./views/setting/setting.vue";
+import Mclive from "./views/mclive/mclive.vue";
 
 const app = createApp(App);
 app.use(ElementPlus);
@@ -23,4 +24,10 @@ const setting = createApp(Setting);
 setting.use(ElementPlus);
 if (document.getElementById("setting")) {
     setting.mount("#setting");
+}
+
+const mclive = createApp(Mclive);
+mclive.use(ElementPlus);
+if (document.getElementById("mclive")) {
+    mclive.mount("#mclive");
 }
