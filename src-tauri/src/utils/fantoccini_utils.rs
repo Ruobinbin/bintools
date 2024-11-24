@@ -93,6 +93,8 @@ pub async fn upload_all(
     platforms: &Vec<String>,
 ) -> Result<(), String> {
     let c = get_client().await?;
+    c.maximize_window().await.map_err(|e| e.to_string())?;
+
     for platform in platforms {
         match platform.as_str() {
             "bilibili" => {
@@ -262,67 +264,65 @@ pub async fn upload_all(
             }
             "douyin" => {
                 // 上传抖音
-                // {
-                //     c.execute(
-                //         "window.open('https://creator.douyin.com/creator-micro/content/upload', '_blank');",
-                //         vec![],
-                //     )
-                //     .await
-                //     .map_err(|e| e.to_string())?;
+                c.execute(
+                        "window.open('https://creator.douyin.com/creator-micro/content/upload', '_blank');",
+                        vec![],
+                    )
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-                //     let windows = c.windows().await.map_err(|e| e.to_string())?;
-                //     c.switch_to_window(windows.last().unwrap().clone())
-                //         .await
-                //         .map_err(|e| e.to_string())?;
+                let windows = c.windows().await.map_err(|e| e.to_string())?;
+                c.switch_to_window(windows.last().unwrap().clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-                //     c.wait()
-                //         .forever()
-                //         .for_element(Locator::Css("input[type='file']"))
-                //         .await
-                //         .map_err(|e| e.to_string())?
-                //         .send_keys(path)
-                //         .await
-                //         .map_err(|e| e.to_string())?;
+                c.wait()
+                    .forever()
+                    .for_element(Locator::Css("input[type='file']"))
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .send_keys(path)
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-                //     c.wait()
-                //         .for_element(Locator::Css(".semi-input"))
-                //         .await
-                //         .map_err(|e| e.to_string())?
-                //         .send_keys(name)
-                //         .await
-                //         .map_err(|e| e.to_string())?;
+                c.wait()
+                    .for_element(Locator::Css(".semi-input"))
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .send_keys(name)
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-                //     let tag_input = c
-                //         .wait()
-                //         .for_element(Locator::Css(".zone-container"))
-                //         .await
-                //         .map_err(|e| e.to_string())?;
+                let tag_input = c
+                    .wait()
+                    .for_element(Locator::Css(".zone-container"))
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-                //     for tag in tags {
-                //         tag_input
-                //             .send_keys(&format!("#{}{}", tag, Key::Enter))
-                //             .await
-                //             .map_err(|e| e.to_string())?;
-                //     }
+                for tag in tags {
+                    tag_input
+                        .send_keys(&format!("#{}{}", tag, Key::Enter))
+                        .await
+                        .map_err(|e| e.to_string())?;
+                }
 
-                //     c.wait()
-                //         .for_element(Locator::XPath("//div[contains(text(), '选择封面')]"))
-                //         .await
-                //         .map_err(|e| e.to_string())?
-                //         .click()
-                //         .await
-                //         .map_err(|e| e.to_string())?;
+                c.wait()
+                    .for_element(Locator::XPath("//div[contains(text(), '选择封面')]"))
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .click()
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-                //     c.wait()
-                //         .for_element(Locator::XPath(
-                //             "//span[@class='semi-button-content' and text()='完成']",
-                //         ))
-                //         .await
-                //         .map_err(|e| e.to_string())?
-                //         .click()
-                //         .await
-                //         .map_err(|e| e.to_string())?;
-                // }
+                c.wait()
+                    .for_element(Locator::XPath(
+                        "//span[@class='semi-button-content' and text()='完成']",
+                    ))
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .click()
+                    .await
+                    .map_err(|e| e.to_string())?;
             }
             "kuaishou" => {
                 c.execute(

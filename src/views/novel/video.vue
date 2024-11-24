@@ -98,7 +98,6 @@ onMounted(async () => {
     videoList.value = (await getAllVideos()).map(video => {
         return new Video(video.id, video.url, video.channelUrl, video.duration, video.thumbnail);
     });
-    console.log(videoList.value);
     channelUrls.value = await getAllChannelUrls();
 });
 

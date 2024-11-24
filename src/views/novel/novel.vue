@@ -43,8 +43,8 @@
             <el-divider>设置</el-divider>
             <div w-md>
                 <el-radio-group v-model="ttsOption">
-                    <el-radio label="edgetts">edgeTts</el-radio>
-                    <el-radio label="azuretts">azureTts</el-radio>
+                    <el-radio value="edgetts">edgeTts</el-radio>
+                    <el-radio value="azuretts">azureTts</el-radio>
                 </el-radio-group>
                 <el-input v-model="novelName" placeholder="小说名" />
                 <el-input v-model="novelIntro" type="textarea" placeholder="小说介绍" h-25 />
@@ -348,11 +348,13 @@ const generateVideo = async () => {
             return;
         }
         if (ttsOption.value === 'azuretts') {
-            await azureTtsGenerateAllAudio().catch(() => {
+            await azureTtsGenerateAllAudio().catch((error) => {
+                ElMessage.error(`${error as string}`);
                 return;
             });
         } else {
-            await edgeTtsGenerateAllAudio().catch(() => {
+            await edgeTtsGenerateAllAudio().catch((error) => {
+                ElMessage.error(`${error as string}`);
                 return;
             });
         }
@@ -436,7 +438,7 @@ const generateVideo = async () => {
             ...(selectedBgm.value ? ["-stream_loop", "-1", "-i", `/workspace/novel_output/bgm/${getFileNameFromPath(selectedBgm.value)}`] : []),
             "-filter_complex", `
                 [0:v]subtitles=/workspace/novel_output/audios.srt:force_style='FontName=ZCOOL KuaiLe,FontSize=8,Spacing=-2,PrimaryColour=&H00FFFF&,WrapStyle=0,MarginV=160,MaxWidth=300'[v];
-                ${novelName.value ? `[v]drawtext=text='${novelName.value}:'x='if(lt(t,2), lerp((w-text_w)/2, 100, t/2), 100)':y='if(lt(t,2), lerp((h-text_h)/2-150, 100, t/2), 100)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize='if(lt(t,2), lerp(250, 100, t/2), 100)':borderw=15:bordercolor=black[v];` : ''}
+                ${novelName.value ? `[v]drawtext=text='${novelName.value}:'x='if(lt(t,2), lerp((w-text_w)/2, 100, t/2), 100)':y='if(lt(t,2), lerp((h-text_h)/2-150, 100, t/2), 100)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize='if(lt(t,2), lerp(200, 100, t/2), 100)':borderw=15:bordercolor=black[v];` : ''}
                 ${novelIntro.value ? `[v]drawtext=text='${novelIntro.value}:'x='(w-text_w)/2':y='if(lt(t,2), lerp((h-text_h)/2+text_h/2, h, t/2), h)':fontfile=/usr/share/fonts/truetype/binfonts/ZCOOLKuaiLe-Regular.ttf:fontcolor=yellow:fontsize=120:shadowcolor=black:borderw=10:bordercolor=black[v];` : ''}
                 ${filterComplex}
             `,
@@ -467,45 +469,38 @@ const generateVideo = async () => {
 
 const edgeTtsGenerateAllAudio = async () => {
     isEdgeTtsGenerating.value = true;
-    const speaker = localStorage.getItem('edgeTtsSpeaker');
-    if (!speaker) {
-        ElMessage.error('未设置edge说话人');
+    try {
+        const speaker = localStorage.getItem('edgeTtsSpeaker');
+        if (!speaker) {
+            throw new Error('未设置edge说话人');
+        }
+        const rate = parseInt(localStorage.getItem('edgeTtsRate') ?? "0");
+        const audioPath = `${OUTPUT_PATH.value}\\audios.wav`;
+        const text = novelContents.value;
+        await invoke('edge_tts', { audioPath, speaker, rate, text });
+        ElMessage.success('生成音频成功');
+        audiosSrc.value = OUTPUT_PATH.value + '\\audios.wav';
+    } catch (error) {
+        ElMessage.error(`生成音频失败: ${error as string}`);
+        throw error;
+    } finally {
         isEdgeTtsGenerating.value = false;
-        return;
     }
-    const rate = parseInt(localStorage.getItem('edgeTtsRate') ?? "0")
-    const audioPath = `${OUTPUT_PATH.value}\\audios.wav`
-    const text = novelContents.value
-    await invoke('edge_tts', { audioPath, speaker, rate, text })
-        .then(() => {
-            ElMessage.success('生成音频成功');
-            audiosSrc.value = OUTPUT_PATH.value + '\\audios.wav';
-        })
-        .catch(error => {
-            ElMessage.error(`生成音频失败: ${error as string}`);
-        })
-        .finally(() => {
-            isEdgeTtsGenerating.value = false;
-        });
 }
 
 const azureTtsGenerateAllAudio = async () => {
     isAzureTtsGenerating.value = true;
-    await generateCompleteAudioData(novelContents.value,)
-        .then(async (audioData) => {
-            await invoke('save_novel_audio', { audioData, audioName: 'audios.wav' }).then(() => {
-                audiosSrc.value = OUTPUT_PATH.value + '\\audios.wav';
-                ElMessage.success('生成音频成功');
-            }).catch(error => {
-                ElMessage.error(`保存音频失败: ${error as string}`);
-            });
-        })
-        .catch(error => {
-            ElMessage.error(`生成音频失败: ${error as string}`);
-        })
-        .finally(() => {
-            isAzureTtsGenerating.value = false;
-        });
+    try {
+        const audioData = await generateCompleteAudioData(novelContents.value);
+        await invoke('save_novel_audio', { audioData, audioName: 'audios.wav' });
+        audiosSrc.value = OUTPUT_PATH.value + '\\audios.wav';
+        ElMessage.success('生成音频成功');
+    } catch (error) {
+        isAzureTtsGenerating.value = false;
+        throw new Error(`生成音频失败: ${error as string}`);
+    } finally {
+        isAzureTtsGenerating.value = false;
+    }
 }
 </script>
 
