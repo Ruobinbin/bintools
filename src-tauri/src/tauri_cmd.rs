@@ -193,21 +193,3 @@ pub async fn upload_video(
 ) -> Result<(), String> {
     utils::fantoccini_utils::upload_all(&path, &tags, &name, &platforms).await
 }
-
-//启动minecraft live
-#[command]
-pub async fn start_minecraft_live(id: String, cookie: String, wss: String) -> Result<(), String> {
-    println!("douyin_wss_url: {}", wss);
-    let mclive = utils::minecraft_live_utlis::MinecraftLive::start()
-        .await
-        .map_err(|e| e.to_string())?;
-    // mclive
-    //     .connect_douyin(wss)
-    //     .await
-    //     .map_err(|e| e.to_string())?;
-    mclive
-        .connect_bilibili(id, Some(cookie))
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}

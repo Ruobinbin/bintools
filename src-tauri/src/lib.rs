@@ -112,7 +112,6 @@ pub fn run() {
             tauri_cmd::delete_file,
             tauri_cmd::delete_file_with_prefix,
             tauri_cmd::upload_video,
-            tauri_cmd::start_minecraft_live,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
